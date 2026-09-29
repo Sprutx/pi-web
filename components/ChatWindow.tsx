@@ -19,6 +19,8 @@ import { MessageView } from "./MessageView";
 import { MarkdownBody } from "./MarkdownBody";
 import { ChatInput, getUserMessageDraftImages, getUserMessageText, type ChatInputHandle } from "./ChatInput";
 import { ChatMinimap, useMessageRefs } from "./ChatMinimap";
+import { isEntryOnBranch } from "@/lib/bookmark-branch";
+import { BookmarkMark } from "./BookmarkMark";
 import { ExtensionStatusBar } from "./ExtensionStatusBar";
 import { AnsiText } from "./AnsiText";
 import { useI18n } from "@/hooks/useI18n";
@@ -91,6 +93,10 @@ interface Props {
   quoteSelectionEnabled?: boolean;
   initialPrompt?: string;
   onInitialPromptConsumed?: () => void;
+  /** One-shot request to move the session's tree leaf (e.g. a bookmark jump).
+   *  `token` keeps repeated jumps to the same entry distinct. */
+  initialTreeTarget?: { sessionId: string; entryId: string; token: number } | null;
+  onInitialTreeTargetConsumed?: () => void;
   /** Completion sound state + controls, owned by AppShell so tasks finishing in
    *  a non-active workspace can still ring. */
   soundEnabled?: boolean;
@@ -255,7 +261,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, durationMs, cacheMis
   );
 }
 
-export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, newSessionContextBar, initialNewSessionChoices, onNewSessionChoicesChange, onAgentEnd, onSessionEnded, onToolEnd, onAttentionNeeded, onSessionCreated, onSessionForked, panel = false, onSideSession, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onDebugSnapshotReaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onOpenSettings, onContextUsageChange, onOpenFile, onFilesUploaded, onOpenSubagent, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio, holdAudio }: Props) {
+export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, newSessionContextBar, initialNewSessionChoices, onNewSessionChoicesChange, onAgentEnd, onSessionEnded, onToolEnd, onAttentionNeeded, onSessionCreated, onSessionForked, panel = false, onSideSession, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onDebugSnapshotReaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onOpenSettings, onContextUsageChange, onOpenFile, onFilesUploaded, onOpenSubagent, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, initialTreeTarget, onInitialTreeTargetConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio, holdAudio }: Props) {
   const { t } = useI18n();
   const isMobile = useIsMobile();
   const completionNotificationsEnabled = !isHiddenRelation(session?.relation);
@@ -285,6 +291,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
   const [restoreAnchorReady, setRestoreAnchorReady] = useState(false);
 
   const {
+    data: sessionData,
     loading, error, messages, activeToolResults, toolClocks, entryIds, messageKeys, historyCursor, hasEarlierMessages, earlierTurnCount, streamingStore,
     agentRunning, bashRunning, pendingBash, modelNames, modelList, modelError, missingCwd, modelScopeWarnings, isModelScopeActive, allModelList, modelThinkingLevels, modelThinkingLevelMaps, toolPreset, thinkingLevel,
     retryInfo, contextUsage, forkingEntryId,
@@ -471,6 +478,31 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
     onInitialPromptConsumed?.();
     void handleSend(initialPrompt);
   }, [initialPrompt, loading, error, handleSend, onInitialPromptConsumed]);
+
+  // A bookmark in another session lands here only after the target session is
+  // already active, so wait for the same quiet point as initialPrompt. A
+  // bookmark on the open branch only scrolls there: moving the leaf would cut
+  // the transcript at it and branch the next prompt from it. One on another
+  // branch moves the tree leaf, then scrolls to it the same way.
+  const initialTreeTargetSentRef = useRef<number | null>(null);
+  const [bookmarkJump, setBookmarkJump] = useState<{ sessionId: string; entryId: string } | null>(null);
+  const sessionTree = sessionData?.tree;
+  const bookmarkLabels = sessionData?.labels;
+  useEffect(() => {
+    if (loading || error || !initialTreeTarget) return;
+    if (initialTreeTargetSentRef.current === initialTreeTarget.token) return;
+    if (session?.id !== initialTreeTarget.sessionId) return;
+    initialTreeTargetSentRef.current = initialTreeTarget.token;
+    onInitialTreeTargetConsumed?.();
+    const { sessionId, entryId } = initialTreeTarget;
+    if (isEntryOnBranch(sessionTree ?? [], activeLeafId, entryId)) {
+      setBookmarkJump({ sessionId, entryId });
+      return;
+    }
+    void handleNavigate(entryId).then((moved) => {
+      if (moved) setBookmarkJump({ sessionId, entryId });
+    });
+  }, [initialTreeTarget, loading, error, handleNavigate, onInitialTreeTargetConsumed, session?.id, sessionTree, activeLeafId]);
 
   // One sound when a dialog appears with none on screen. A dialog queued behind
   // another one surfaces the moment the user answers that one, so it stays quiet.
@@ -668,6 +700,71 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
     setPendingSearchScroll(null);
     onSearchTargetHandled?.(pendingSearchScroll);
   }, [pendingSearchScroll, searchTarget, searchMessage, scrollContainerRef, scrollToMessage, onSearchTargetHandled]);
+
+  // Fork: page the branch in until the bookmarked entry is loaded, then show
+  // every row down to it. Unlike search, it walks the whole branch: the
+  // bookmark is known to be on it.
+  const [bookmarkScrollReady, setBookmarkScrollReady] = useState<string | null>(null);
+  useEffect(() => {
+    if (!bookmarkJump || loading) return;
+    if (session?.id !== bookmarkJump.sessionId) {
+      setBookmarkJump(null);
+      return;
+    }
+    const controller = new AbortController();
+    const locate = async () => {
+      const history = searchHistoryRef.current;
+      let found = history.entryIds.includes(bookmarkJump.entryId);
+      let loaded = history.entryIds.length;
+      let before = history.historyCursor;
+      let hasMore = history.hasEarlierMessages;
+      if (!found && hasMore && before && !loadingOlderRef.current) {
+        loadingOlderRef.current = true;
+        try {
+          while (!found && hasMore && before && !controller.signal.aborted) {
+            const context = await loadOlderPage(bookmarkJump.sessionId, before, { tail: 200, signal: controller.signal });
+            if (!context) break;
+            loaded += context.entryIds.length;
+            found = context.entryIds.includes(bookmarkJump.entryId);
+            before = context.oldestEntryId;
+            hasMore = context.hasMore;
+          }
+        } finally {
+          loadingOlderRef.current = false;
+        }
+      }
+      if (controller.signal.aborted) return;
+      setBookmarkJump(null);
+      if (!found) return;
+      prevScrollDistanceRef.current = null;
+      setVisibleCount((current) => Math.max(current, loaded * 2));
+      setBookmarkScrollReady(bookmarkJump.entryId);
+    };
+    void locate();
+    return () => controller.abort();
+  }, [bookmarkJump, loading, loadOlderPage, session?.id]);
+
+  useLayoutEffect(() => {
+    if (!bookmarkScrollReady) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    // An entry folded into a turn's step group has no row of its own: land on
+    // the nearest row above it, which is the group's prompt.
+    let element: HTMLElement | null = null;
+    for (let index = entryIds.indexOf(bookmarkScrollReady); index >= 0 && !element; index--) {
+      // The last match: a final message renders as a step and as the answer below it.
+      const matches = container.querySelectorAll<HTMLElement>(`[data-entry-id="${CSS.escape(entryIds[index])}"]`);
+      element = matches.item(matches.length - 1);
+    }
+    setBookmarkScrollReady(null);
+    if (!element) return;
+    // Room above the row, so its bookmark mark is not cut by the top edge.
+    scrollToMessage(element, 56);
+    element.animate([
+      { backgroundColor: "var(--bg-selected)" },
+      { backgroundColor: "transparent" },
+    ], { duration: 2500 });
+  }, [bookmarkScrollReady, entryIds, scrollContainerRef, scrollToMessage, visibleCount]);
 
   // IntersectionObserver on the sentinel div at the top of the message list.
   // When it becomes visible, load the next page of older messages.
@@ -1126,7 +1223,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
                 if (idx === lastUserIdx) { (lastUserMsgRef as { current: HTMLDivElement | null }).current = el; }
               };
 
-              const renderMessage = (idx: number, options: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; writtenFiles?: WrittenFile[]; recoverTruncation?: boolean; turnDurationMs?: number; withNotices?: boolean } = {}): ReactNode => {
+              const renderMessage = (idx: number, options: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; writtenFiles?: WrittenFile[]; recoverTruncation?: boolean; turnDurationMs?: number; withNotices?: boolean; bookmark?: boolean } = {}): ReactNode => {
                 const msg = options.messageOverride ?? messages[idx];
                 if (msg.role === "custom" && msg.customType === SIDE_BOUNDARY_MESSAGE_TYPE) return <SideChatDivider key="side-chat-divider" />;
                 if (isHiddenCustomMessage(msg)) return null;
@@ -1180,10 +1277,13 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
                   />
                 );
                 const noticeLines = notices.length > 0 ? <TranscriptNoticeLines key={`${keyPrefix}-notices-${messageKey}`} notices={notices} /> : null;
+                const bookmarkLabel = options.bookmark === false ? undefined : bookmarkLabels?.[entryIds[idx]];
+                const bookmarkMark = bookmarkLabel ? <BookmarkMark key={`${keyPrefix}-bookmark-${messageKey}`} label={bookmarkLabel} align={msg.role === "user" ? "end" : "start"} /> : null;
                 // One shape with or without notices, so lines arriving on a reload do not remount the view.
-                if (!isVisible || currentRefIdx === undefined) return <Fragment key={`${keyPrefix}-${messageKey}`}>{view}{noticeLines}</Fragment>;
+                if (!isVisible || currentRefIdx === undefined) return <Fragment key={`${keyPrefix}-${messageKey}`}>{bookmarkMark}{view}{noticeLines}</Fragment>;
                 return (
                   <div key={`${keyPrefix}-${messageKey}`} data-entry-id={entryIds[idx]} ref={options.attachRef === false ? undefined : attachVisibleRef(idx, currentRefIdx)}>
+                    {bookmarkMark}
                     {view}
                     {noticeLines}
                   </div>
@@ -1268,12 +1368,16 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
                   processToolCount += countToolCallBlocks(blocks);
                   processMessageCount += 1;
                   revealProcess ||= Boolean(pendingSearchScroll && entryIds[processIdx] === pendingSearchScroll.entryId && (!searchBlock || blocks.includes(searchBlock)));
+                  // Fork: a bookmark on a step opens its group; the final message's mark goes on its answer.
+                  const markOnAnswer = processIdx === finalAssistantIdx && Boolean(finalAnswerMessage);
+                  revealProcess ||= !markOnAnswer && bookmarkScrollReady !== null && entryIds[processIdx] === bookmarkScrollReady;
                   processViews.push(renderMessage(processIdx, {
                     attachRef: false,
                     keyPrefix: "process",
                     messageOverride: message,
                     showTimestamp: false,
                     withNotices,
+                    bookmark: !markOnAnswer,
                   }));
                 }
 
@@ -1398,6 +1502,8 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
             messageRefs={messageRefs}
             onRevealHistory={revealHistoryForMinimap}
             turnsBefore={earlierTurnCount}
+            entryIds={entryIds}
+            bookmarkLabels={bookmarkLabels}
           />
         )}
         </>}

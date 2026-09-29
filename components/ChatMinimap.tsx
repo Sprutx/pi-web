@@ -22,6 +22,10 @@ interface Props {
   onRevealHistory: () => void;
   /** Turns of the branch the server has not sent yet: numbers continue from it (#791). */
   turnsBefore: number;
+  /** Fork: entry ids of `messages`, index for index, to find bookmarked turns. */
+  entryIds?: string[];
+  /** Fork: bookmark label by entry id. */
+  bookmarkLabels?: Record<string, string>;
 }
 
 const MINIMAP_WIDTH = 36;
@@ -44,6 +48,8 @@ interface TurnInfo {
   scrollTop: number | null;
   /** Tool calls issued anywhere in this turn's assistant replies. */
   toolCount: number;
+  /** Fork: labels of the bookmarked entries in this turn. */
+  bookmarks: string[];
 }
 
 interface NodeInfo {
@@ -253,6 +259,8 @@ export const ChatMinimap = memo(function ChatMinimap({
   messageRefs,
   onRevealHistory,
   turnsBefore,
+  entryIds,
+  bookmarkLabels,
 }: Props) {
   const { t } = useI18n();
   const [visible, setVisible] = useState(false);
@@ -283,6 +291,10 @@ export const ChatMinimap = memo(function ChatMinimap({
 
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const entryIdsRef = useRef(entryIds);
+  entryIdsRef.current = entryIds;
+  const bookmarkLabelsRef = useRef(bookmarkLabels);
+  bookmarkLabelsRef.current = bookmarkLabels;
 
   const nodeLayout = useMemo(
     () => layoutNodes(allNodes, minimapHeight),
@@ -350,9 +362,15 @@ export const ChatMinimap = memo(function ChatMinimap({
       const allMessages: (AgentMessage | Partial<AgentMessage>)[] = streamingMessage
         ? [...messagesRef.current, streamingMessage]
         : messagesRef.current;
-      for (const message of allMessages) {
+      const labels = bookmarkLabelsRef.current;
+      for (const [messageIndex, message] of allMessages.entries()) {
         const isAnchor = isMessageGroupAnchor(message);
-        if (!isAnchor && message.role !== "assistant") continue;
+        const entryId = entryIdsRef.current?.[messageIndex];
+        const bookmark = labels && entryId ? labels[entryId] : undefined;
+        if (!isAnchor && message.role !== "assistant") {
+          if (bookmark) currentTurn?.bookmarks.push(bookmark);
+          continue;
+        }
         const element = refs?.[refIndex];
         refIndex++;
 
@@ -366,12 +384,14 @@ export const ChatMinimap = memo(function ChatMinimap({
               ? elementRect.top - containerRect.top + scrollEl.scrollTop
               : null,
             toolCount: 0,
+            bookmarks: bookmark ? [bookmark] : [],
           };
           turns.push(currentTurn);
           continue;
         }
 
         if (!currentTurn) continue;
+        if (bookmark) currentTurn.bookmarks.push(bookmark);
         currentTurn.toolCount += countToolCalls(message);
         const answerMarkdown = getAssistantAnswerMarkdown(message);
         if (answerMarkdown) {
@@ -458,7 +478,7 @@ export const ChatMinimap = memo(function ChatMinimap({
       updateScroll();
     }, 50);
     return () => clearTimeout(timeout);
-  }, [messages.length, measureNodes, updateScroll]);
+  }, [messages.length, bookmarkLabels, measureNodes, updateScroll]);
 
   const scrollToNode = useCallback((node: NodeInfo, behavior: ScrollBehavior) => {
     const scrollEl = scrollContainer.current;
@@ -688,12 +708,14 @@ export const ChatMinimap = memo(function ChatMinimap({
       {positionedNodes.map((node) => {
         const isNearest = minimapHovered && nearestNode?.index === node.index;
         const isActive = activeIndex === node.index;
+        const bookmarked = node.targetTurn.bookmarks.length > 0;
 
         return (
           <div
             key={node.index}
             data-minimap-node-index={node.index}
             data-minimap-node-active={isActive ? "" : undefined}
+            data-minimap-node-bookmarked={bookmarked ? "" : undefined}
             style={{
               position: "absolute",
               top: `${node.topRatio * 100}%`,
@@ -713,8 +735,10 @@ export const ChatMinimap = memo(function ChatMinimap({
                 width: 8,
                 height: 8,
                 borderRadius: 2,
-                background: isActive ? "rgba(128,128,128,0.42)" : "rgba(128,128,128,0.16)",
-                border: `1.5px solid ${isActive ? "rgba(128,128,128,0.95)" : "rgba(128,128,128,0.58)"}`,
+                background: bookmarked
+                  ? "var(--accent)"
+                  : isActive ? "rgba(128,128,128,0.42)" : "rgba(128,128,128,0.16)",
+                border: `1.5px solid ${bookmarked ? "var(--accent)" : isActive ? "rgba(128,128,128,0.95)" : "rgba(128,128,128,0.58)"}`,
                 boxShadow: isActive ? "0 0 0 2px var(--bg-panel)" : "none",
                 transition: "transform 0.1s, background 0.1s",
                 transform: isNearest ? "scale(1.25)" : "scale(1)",
@@ -806,6 +830,14 @@ export const ChatMinimap = memo(function ChatMinimap({
                   )}
                 </span>
                 <div className={styles.content}>
+                  {node.targetTurn.bookmarks.map((bookmark, bookmarkIndex) => (
+                    <div key={bookmarkIndex} className={styles.bookmark} data-minimap-preview-bookmark="">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                      </svg>
+                      <span>{bookmark}</span>
+                    </div>
+                  ))}
                   <button
                     type="button"
                     className={styles.user}

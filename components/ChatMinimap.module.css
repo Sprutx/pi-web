@@ -309,3 +309,20 @@
   outline: 1px solid color-mix(in srgb, var(--text-muted) 65%, transparent);
   outline-offset: 1px;
 }
+
+/* Fork: a bookmarked turn's labels above its prompt. */
+.bookmark {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.bookmark span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
