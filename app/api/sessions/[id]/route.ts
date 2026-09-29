@@ -11,6 +11,7 @@ import {
 } from "@/lib/session-reader";
 import { getRpcSession, renameRpcSession, subagentDisplayStatus } from "@/lib/rpc-manager";
 import { projectTreeForResponse, toSummaryTree } from "@/lib/project-tree";
+import { sessionLabels } from "@/lib/bookmarks";
 import { computeSessionTotalActiveMs } from "@/lib/session-timing";
 import { computeSessionStats } from "@/lib/session-stats";
 import { startServerPerf } from "@/lib/perf";
@@ -62,6 +63,8 @@ export async function GET(
       ? toSummaryTree(projectTreeForResponse(sm.getTree()))
       : projectTreeForResponse(sm.getTree());
     perf?.span("tree");
+    // Fork: bookmark marks in the transcript and the minimap.
+    const labels = sessionLabels(entries as unknown as SessionEntry[]);
     const deferThinking = searchParams.has("deferThinking");
     const deferToolResultImages = searchParams.has("deferMedia");
     const rawTail = Number(searchParams.get("tail"));
@@ -153,6 +156,7 @@ export async function GET(
         context,
         stats,
         totalActiveMs,
+        ...(labels ? { labels } : {}),
         ...(toolNames !== undefined ? { toolNames } : {}),
         ...(wrapperRebuilt ? { wrapperRebuilt: true } : {}),
       },
@@ -169,6 +173,7 @@ export async function GET(
         context,
         stats,
         totalActiveMs,
+        ...(labels ? { labels } : {}),
         ...(toolNames !== undefined ? { toolNames } : {}),
         ...(wrapperRebuilt ? { wrapperRebuilt: true } : {}),
       },

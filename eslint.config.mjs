@@ -3,7 +3,8 @@ import typescript from "eslint-config-next/typescript";
 
 const eslintConfig = [
   // demo/ is a separate Next.js project with its own lint config.
-  { ignores: ["demo/**"] },
+  // `.next.prev-*` are build backups kept for rollback; they are generated code.
+  { ignores: ["demo/**", ".next*/**"] },
   ...coreWebVitals,
   ...typescript,
   {

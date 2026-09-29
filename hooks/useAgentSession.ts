@@ -84,6 +84,8 @@ export interface SessionData {
   snapshotRevision?: string | null;
   /** "summary" when `tree` carries the body-free navigation format. */
   treeFormat?: "summary";
+  /** Fork: bookmark label by target entry id; absent when the session has none. */
+  labels?: Record<string, string>;
   context: {
     messages: AgentMessage[];
     entryIds: string[];

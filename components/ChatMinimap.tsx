@@ -25,6 +25,10 @@ interface Props {
   turnsBefore: number;
   /** ChatWindow's getTurnAnchors() over `messages`: the minimap groups and reads refs as it renders. */
   turnAnchors: readonly boolean[];
+  /** Fork: entry ids of `messages`, index for index, to find bookmarked turns. */
+  entryIds?: string[];
+  /** Fork: bookmark label by entry id. */
+  bookmarkLabels?: Record<string, string>;
 }
 
 const MINIMAP_WIDTH = 36;
@@ -47,6 +51,8 @@ interface TurnInfo {
   scrollTop: number | null;
   /** Tool calls issued anywhere in this turn's assistant replies. */
   toolCount: number;
+  /** Fork: labels of the bookmarked entries in this turn. */
+  bookmarks: string[];
 }
 
 interface NodeInfo {
@@ -257,6 +263,8 @@ export const ChatMinimap = memo(function ChatMinimap({
   onRevealHistory,
   turnsBefore,
   turnAnchors,
+  entryIds,
+  bookmarkLabels,
 }: Props) {
   const { t } = useI18n();
   const [visible, setVisible] = useState(false);
@@ -289,6 +297,10 @@ export const ChatMinimap = memo(function ChatMinimap({
   messagesRef.current = messages;
   const turnAnchorsRef = useRef(turnAnchors);
   turnAnchorsRef.current = turnAnchors;
+  const entryIdsRef = useRef(entryIds);
+  entryIdsRef.current = entryIds;
+  const bookmarkLabelsRef = useRef(bookmarkLabels);
+  bookmarkLabelsRef.current = bookmarkLabels;
 
   const nodeLayout = useMemo(
     () => layoutNodes(allNodes, minimapHeight),
@@ -356,10 +368,16 @@ export const ChatMinimap = memo(function ChatMinimap({
       const allMessages: (AgentMessage | Partial<AgentMessage>)[] = streamingMessage
         ? [...messagesRef.current, streamingMessage]
         : messagesRef.current;
+      const labels = bookmarkLabelsRef.current;
       for (const [messageIdx, message] of allMessages.entries()) {
         // The streaming reply, past `messages`, is never an anchor.
         const isAnchor = turnAnchorsRef.current[messageIdx] === true;
-        if (!isAnchor && message.role !== "assistant") continue;
+        const entryId = entryIdsRef.current?.[messageIdx];
+        const bookmark = labels && entryId ? labels[entryId] : undefined;
+        if (!isAnchor && message.role !== "assistant") {
+          if (bookmark) currentTurn?.bookmarks.push(bookmark);
+          continue;
+        }
         // ChatWindow's refs, in the same order: a hidden anchor renders nothing and has none.
         let element: HTMLDivElement | null = null;
         if (hasTurnRef(message, isAnchor)) {
@@ -377,6 +395,7 @@ export const ChatMinimap = memo(function ChatMinimap({
               ? elementRect.top - containerRect.top + scrollEl.scrollTop
               : null,
             toolCount: 0,
+            bookmarks: bookmark ? [bookmark] : [],
           };
           turns.push(currentTurn);
           continue;
@@ -387,6 +406,7 @@ export const ChatMinimap = memo(function ChatMinimap({
         if (currentTurn.scrollTop === null && element && isHiddenCustomMessage(currentTurn.userMessage)) {
           currentTurn.scrollTop = element.getBoundingClientRect().top - containerRect.top + scrollEl.scrollTop;
         }
+        if (bookmark) currentTurn.bookmarks.push(bookmark);
         currentTurn.toolCount += countToolCalls(message);
         const answerMarkdown = getAssistantAnswerMarkdown(message);
         if (answerMarkdown) {
@@ -473,7 +493,7 @@ export const ChatMinimap = memo(function ChatMinimap({
       updateScroll();
     }, 50);
     return () => clearTimeout(timeout);
-  }, [messages.length, turnAnchors, measureNodes, updateScroll]);
+  }, [messages.length, turnAnchors, bookmarkLabels, measureNodes, updateScroll]);
 
   const scrollToNode = useCallback((node: NodeInfo, behavior: ScrollBehavior) => {
     const scrollEl = scrollContainer.current;
@@ -703,12 +723,14 @@ export const ChatMinimap = memo(function ChatMinimap({
       {positionedNodes.map((node) => {
         const isNearest = minimapHovered && nearestNode?.index === node.index;
         const isActive = activeIndex === node.index;
+        const bookmarked = node.targetTurn.bookmarks.length > 0;
 
         return (
           <div
             key={node.index}
             data-minimap-node-index={node.index}
             data-minimap-node-active={isActive ? "" : undefined}
+            data-minimap-node-bookmarked={bookmarked ? "" : undefined}
             style={{
               position: "absolute",
               top: `${node.topRatio * 100}%`,
@@ -728,8 +750,10 @@ export const ChatMinimap = memo(function ChatMinimap({
                 width: 8,
                 height: 8,
                 borderRadius: 2,
-                background: isActive ? "rgba(128,128,128,0.42)" : "rgba(128,128,128,0.16)",
-                border: `1.5px solid ${isActive ? "rgba(128,128,128,0.95)" : "rgba(128,128,128,0.58)"}`,
+                background: bookmarked
+                  ? "var(--accent)"
+                  : isActive ? "rgba(128,128,128,0.42)" : "rgba(128,128,128,0.16)",
+                border: `1.5px solid ${bookmarked ? "var(--accent)" : isActive ? "rgba(128,128,128,0.95)" : "rgba(128,128,128,0.58)"}`,
                 boxShadow: isActive ? "0 0 0 2px var(--bg-panel)" : "none",
                 transition: "transform 0.1s, background 0.1s",
                 transform: isNearest ? "scale(1.25)" : "scale(1)",
@@ -801,6 +825,14 @@ export const ChatMinimap = memo(function ChatMinimap({
                   )}
                 </span>
                 <div className={styles.content}>
+                  {node.targetTurn.bookmarks.map((bookmark, bookmarkIndex) => (
+                    <div key={bookmarkIndex} className={styles.bookmark} data-minimap-preview-bookmark="">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                      </svg>
+                      <span>{bookmark}</span>
+                    </div>
+                  ))}
                   <button
                     type="button"
                     className={styles.user}
