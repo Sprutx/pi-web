@@ -13,6 +13,8 @@ import { SettingsPanel, SettingsSectionIcon } from "./SettingsPanel";
 import { ProjectTrustDialog } from "./ProjectTrustDialog";
 import { BranchNavigator, hasSessionBranches } from "./BranchNavigator";
 import { SystemPromptPanel } from "./SystemPromptPanel";
+import { BookmarksPanel } from "./BookmarksPanel";
+import type { SessionBookmark } from "@/lib/bookmarks";
 import { ToolDefinitionsPanel } from "./ToolDefinitionsPanel";
 import { AgentSessionPanel } from "./AgentSessionPanel";
 import { TerminalPanel } from "./TerminalPanel";
@@ -327,8 +329,10 @@ export function AppShell() {
   }, []);
 
   // Single active panel — only one dropdown open at a time
-  const [activeTopPanel, setActiveTopPanel] = useState<"agents" | "branches" | "system" | "tools" | "session" | null>(null);
+  const [activeTopPanel, setActiveTopPanel] = useState<"agents" | "bookmarks" | "branches" | "system" | "tools" | "session" | null>(null);
   const [topPanelPos, setTopPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  /** Pending bookmark jump, consumed by ChatWindow once its session is live. */
+  const [pendingTreeTarget, setPendingTreeTarget] = useState<{ sessionId: string; entryId: string; token: number } | null>(null);
 
   useEffect(() => {
     if (!sessionHasBranches) {
@@ -347,7 +351,7 @@ export function AppShell() {
   }, [rightPanelFullWidth]);
 
   const toggleTopPanel = useCallback((
-    panel: "agents" | "branches" | "system" | "tools" | "session",
+    panel: "agents" | "bookmarks" | "branches" | "system" | "tools" | "session",
     keepMobileToolbarOpen = false,
   ) => {
     if (isMobile) setSidebarOpen(false);
@@ -963,6 +967,20 @@ export function AppShell() {
       autoNameTimerRef.current = setTimeout(() => setAutoNameStatus({ kind: "idle" }), 5000);
     }
   }, [autoNameStatus.kind, selectedSession?.id]);
+
+  /** Bookmark jump: open the owning session, then move its tree leaf there. */
+  const handleBookmarkSelect = useCallback((bookmark: SessionBookmark) => {
+    setActiveTopPanel(null);
+    const target = { sessionId: bookmark.sessionId, entryId: bookmark.entryId, token: Date.now() };
+    if (selectedSession?.id === bookmark.sessionId) {
+      setPendingTreeTarget(target);
+      return;
+    }
+    const session = sessionsWithSelection.find((candidate) => candidate.id === bookmark.sessionId);
+    if (!session) return;
+    setPendingTreeTarget(target);
+    handleSelectSession(session, false, bookmark.entryId);
+  }, [handleSelectSession, selectedSession?.id, sessionsWithSelection]);
 
   useEffect(() => {
     if (autoNameTimerRef.current) clearTimeout(autoNameTimerRef.current);
@@ -1592,6 +1610,43 @@ export function AppShell() {
           </svg>
           {!mobile && <span>{translate("tools.label")}</span>}
         </button>
+        <button
+          type="button"
+          onClick={() => toggleTopPanel("bookmarks", mobile)}
+          disabled={!showChat}
+          title={translate("bookmarks.title")}
+          aria-label={translate("bookmarks.label")}
+          aria-pressed={activeTopPanel === "bookmarks"}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            width: mobile ? TOP_BAR_ICON_BUTTON_SIZE : undefined,
+            height: "100%", padding: mobile ? 0 : "0 12px",
+            background: activeTopPanel === "bookmarks" ? "var(--bg-selected)" : "none",
+            border: "none",
+            borderTop: activeTopPanel === "bookmarks" ? "2px solid var(--accent)" : "2px solid transparent",
+            borderRight: "1px solid var(--border)",
+            cursor: showChat ? "pointer" : "not-allowed",
+            color: activeTopPanel === "bookmarks" ? "var(--text)" : showChat ? "var(--text-muted)" : "var(--text-dim)",
+            opacity: showChat ? 1 : 0.45,
+            fontSize: 11, whiteSpace: "nowrap", transition: "color 0.1s, background 0.1s",
+          }}
+          onMouseEnter={(event) => {
+            if (!showChat) return;
+            event.currentTarget.style.color = "var(--text)";
+          }}
+          onMouseLeave={(event) => {
+            event.currentTarget.style.color = activeTopPanel === "bookmarks"
+              ? "var(--text)"
+              : showChat ? "var(--text-muted)" : "var(--text-dim)";
+            event.currentTarget.style.background = activeTopPanel === "bookmarks" ? "var(--bg-selected)" : "none";
+          }}
+          data-mobile-toolbar-action={mobile ? "bookmarks" : undefined}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+          </svg>
+          {!mobile && <span>{translate("bookmarks.label")}</span>}
+        </button>
       </div>
     );
   };
@@ -2084,6 +2139,15 @@ export function AppShell() {
                   translate={translate}
                 />
               )}
+              {activeTopPanel === "bookmarks" && (
+                <BookmarksPanel
+                  currentCwd={selectedSession?.cwd ?? null}
+                  currentSessionId={selectedSession?.id ?? null}
+                  sessions={sessionsWithSelection}
+                  translate={translate}
+                  onSelect={handleBookmarkSelect}
+                />
+              )}
               {activeTopPanel === "tools" && (
                 <ToolDefinitionsPanel
                   loading={systemInfoLoading}
@@ -2336,6 +2400,8 @@ export function AppShell() {
               quoteSelectionEnabled={quoteSelectionEnabled}
               initialPrompt={pendingQuotePrompt?.sessionId === selectedSession?.id ? pendingQuotePrompt?.text : undefined}
               onInitialPromptConsumed={() => setPendingQuotePrompt(null)}
+              initialTreeTarget={pendingTreeTarget?.sessionId === selectedSession?.id ? pendingTreeTarget : null}
+              onInitialTreeTargetConsumed={() => setPendingTreeTarget(null)}
               soundEnabled={soundEnabled}
               onSoundToggle={onSoundToggle}
               playDoneSound={playDoneSound}

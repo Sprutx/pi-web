@@ -61,6 +61,10 @@ interface Props {
   quoteSelectionEnabled?: boolean;
   initialPrompt?: string;
   onInitialPromptConsumed?: () => void;
+  /** One-shot request to move the session's tree leaf (e.g. a bookmark jump).
+   *  `token` keeps repeated jumps to the same entry distinct. */
+  initialTreeTarget?: { sessionId: string; entryId: string; token: number } | null;
+  onInitialTreeTargetConsumed?: () => void;
   /** Completion sound state + controls, owned by AppShell so tasks finishing in
    *  a non-active workspace can still ring. */
   soundEnabled?: boolean;
@@ -241,7 +245,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
   );
 }
 
-export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
+export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, initialTreeTarget, onInitialTreeTargetConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
   const { t } = useI18n();
   const isMobile = useIsMobile();
   const completionNotificationsEnabled = session?.relation?.kind !== "subagent";
@@ -448,6 +452,19 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
     onInitialPromptConsumed?.();
     void handleSend(initialPrompt);
   }, [initialPrompt, loading, error, handleSend, onInitialPromptConsumed]);
+
+  // A bookmark in another session lands here only after the target session is
+  // already active, so wait for the same quiet point as initialPrompt and move
+  // the tree leaf instead of re-selecting the session.
+  const initialTreeTargetSentRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (loading || error || !initialTreeTarget) return;
+    if (initialTreeTargetSentRef.current === initialTreeTarget.token) return;
+    if (session?.id !== initialTreeTarget.sessionId) return;
+    initialTreeTargetSentRef.current = initialTreeTarget.token;
+    onInitialTreeTargetConsumed?.();
+    void handleNavigate(initialTreeTarget.entryId);
+  }, [initialTreeTarget, loading, error, handleNavigate, onInitialTreeTargetConsumed, session?.id]);
 
   useEffect(() => {
     if (
