@@ -1615,11 +1615,11 @@ function ExtensionDialog({
           overflow: "hidden",
         }}
       >
-        <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", maxHeight: "50%", overflowY: "auto" }}>
+        <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", maxHeight: "38%", overflowY: "auto" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* Pi's TUI shows the title verbatim, newlines included; select/input have no
                 separate message field, so extensions put multi-line text here. */}
-            <div style={{ color: "var(--text)", fontSize: 14, fontWeight: 650, lineHeight: 1.45, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{request.title}</div>
+            <div style={{ color: "var(--text)", fontSize: 12, fontWeight: 600, lineHeight: 1.5, fontFamily: "var(--font-mono)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{request.title}</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 3, color: "var(--text-dim)", fontSize: 11, fontFamily: "var(--font-mono)" }}>
               <span>{t("chat.extensionRequest")}</span>
               {countdown}
@@ -1650,6 +1650,7 @@ function ExtensionDialog({
           </button>
         </div>
 
+        {request.method !== "select" && (
         <div
           style={{
             padding: 14,
@@ -1658,60 +1659,6 @@ function ExtensionDialog({
         >
           {request.method === "confirm" && (
             <MarkdownBody>{request.message}</MarkdownBody>
-          )}
-          {request.method === "select" && (
-            <div
-              onKeyDown={(event) => {
-                if (!["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"].includes(event.key)) return;
-                const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[data-extension-option]"));
-                const index = buttons.indexOf(event.target as HTMLElement);
-                if (index < 0) return;
-                event.preventDefault();
-                const next = event.key === "Home" ? 0
-                  : event.key === "End" ? buttons.length - 1
-                  : (index + (event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
-                buttons[next].focus({ preventScroll: true });
-                buttons[next].scrollIntoView({ block: "nearest" });
-              }}
-              style={{ display: "grid", gap: 8 }}
-            >
-              {request.options.map((option, index) => (
-                <div
-                  key={option}
-                  role="button"
-                  tabIndex={0}
-                  data-extension-option
-                  aria-label={option}
-                  ref={index === 0 ? focusFirstOption : undefined}
-                  onClick={() => onRespond(request, { value: option })}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    onRespond(request, { value: option });
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "9px 10px",
-                    borderRadius: 7,
-                    border: "1px solid var(--border)",
-                    background: "var(--bg-panel)",
-                    color: "var(--text)",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    fontSize: 13,
-                    overflowWrap: "anywhere",
-                    // Match the scroller's padding so keyboard navigation never parks the
-                    // option flush against the edge, where whole-pixel scroll snapping and
-                    // overflow clipping cut off its focus ring.
-                    scrollMargin: 14,
-                  }}
-                >
-                  <div inert>
-                    <MarkdownBody>{option}</MarkdownBody>
-                  </div>
-                </div>
-              ))}
-            </div>
           )}
           {request.method === "input" && (
             <input
@@ -1759,6 +1706,73 @@ function ExtensionDialog({
             />
           )}
         </div>
+        )}
+        {/* The answer options are what the user has to act on, so they sit below the
+            scrollable text instead of inside it: a long description must not push them
+            out of sight. The block keeps its own overflow for prompts with many choices. */}
+        {request.method === "select" && request.options.length > 0 && (
+        <div
+          style={{
+            flexShrink: 0,
+            maxHeight: "45%",
+            overflowY: "auto",
+            padding: "10px 14px",
+          }}
+        >
+          <div
+            onKeyDown={(event) => {
+              if (!["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+              const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[data-extension-option]"));
+              const index = buttons.indexOf(event.target as HTMLElement);
+              if (index < 0) return;
+              event.preventDefault();
+              const next = event.key === "Home" ? 0
+                : event.key === "End" ? buttons.length - 1
+                : (index + (event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+              buttons[next].focus({ preventScroll: true });
+              buttons[next].scrollIntoView({ block: "nearest" });
+            }}
+            style={{ display: "grid", gap: 8 }}
+          >
+            {request.options.map((option, index) => (
+              <div
+                key={option}
+                role="button"
+                tabIndex={0}
+                data-extension-option
+                aria-label={option}
+                ref={index === 0 ? focusFirstOption : undefined}
+                onClick={() => onRespond(request, { value: option })}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  onRespond(request, { value: option });
+                }}
+                style={{
+                  width: "100%",
+                  padding: "9px 10px",
+                  borderRadius: 7,
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-panel)",
+                  color: "var(--text)",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  fontSize: 13,
+                  overflowWrap: "anywhere",
+                  // Match the scroller's padding so keyboard navigation never parks the
+                  // option flush against the edge, where whole-pixel scroll snapping and
+                  // overflow clipping cut off its focus ring.
+                  scrollMargin: 10,
+                }}
+              >
+                <div inert>
+                  <MarkdownBody>{option}</MarkdownBody>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        )}
 
         <div style={{ flexShrink: 0, display: "flex", justifyContent: "flex-end", gap: 8, padding: "10px 14px", borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
           <button
