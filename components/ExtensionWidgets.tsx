@@ -12,6 +12,33 @@ export function formatExtensionWidgetContent(lines: string[]): string {
   return lines.join("\n");
 }
 
+/**
+ * A permission prompt ends with its action rows (`▶ (y) Allow once`) followed by
+ * a blank line and a hint. Those rows are the only part the user has to be able
+ * to read and click, so they must never be the part that gets clipped: the
+ * panel scrolls the lines above them and pins everything from the first action
+ * row down.
+ */
+const WIDGET_ACTION_ROW = /^\s*(?:\u25b6|\u25b8|>)?\s*\([^)]+\)\s*\S/;
+
+export function findWidgetActionStart(lines: readonly string[]): number {
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!WIDGET_ACTION_ROW.test(lines[index])) continue;
+    const rest = lines.slice(index + 1);
+    // A prompt ends with its options, a blank line and a one-line hint. That
+    // hint looks exactly like any other trailing line, so one is allowed to
+    // travel with the actions; more than that means the options are not what
+    // the widget ends with, and pinning them would hide real content.
+    const hint = rest.length > 0 && rest[rest.length - 1].trim() !== ""
+      && !WIDGET_ACTION_ROW.test(rest[rest.length - 1]) ? rest.slice(0, -1) : rest;
+    const isLastAction = hint.every((line) => (
+      line.trim() === "" || WIDGET_ACTION_ROW.test(line)
+    ));
+    if (isLastAction) return index;
+  }
+  return -1;
+}
+
 export function snapshotExtensionWidgetContents(
   widgets: ExtensionWidgetItem[],
 ): Map<string, string[]> {
@@ -122,6 +149,9 @@ export function ExtensionWidgets({ widgets }: { widgets: ExtensionWidgetItem[] }
             const index = widgets.indexOf(widget);
             const triggerId = `${idPrefix}-trigger-${index}`;
             const panelId = `${idPrefix}-panel-${index}`;
+            const actionStart = findWidgetActionStart(widget.lines);
+            const bodyLines = actionStart > 0 ? widget.lines.slice(0, actionStart) : widget.lines;
+            const actionLines = actionStart > 0 ? widget.lines.slice(actionStart) : [];
             return (
               <section
                 key={widget.key}
@@ -130,9 +160,16 @@ export function ExtensionWidgets({ widgets }: { widgets: ExtensionWidgetItem[] }
                 aria-labelledby={triggerId}
               >
                 <div className="extension-widget-panel-heading">{widget.key}</div>
-                <pre className="extension-widget-content">
-                  <AnsiText text={formatExtensionWidgetContent(widget.lines)} />
-                </pre>
+                <div className="extension-widget-body">
+                  <pre className="extension-widget-content">
+                    <AnsiText text={formatExtensionWidgetContent(bodyLines)} />
+                  </pre>
+                </div>
+                {actionLines.length > 0 && (
+                  <pre className="extension-widget-content extension-widget-actions">
+                    <AnsiText text={formatExtensionWidgetContent(actionLines)} />
+                  </pre>
+                )}
               </section>
             );
           })()}

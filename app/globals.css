@@ -519,20 +519,35 @@ html.dark .web-login-error {
   display: flex;
   flex: 0 0 100%;
   flex-direction: column;
-  max-height: min(144px, 18dvh);
+  max-height: min(52dvh, 420px);
   overflow-x: hidden;
-  overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: var(--bg-panel);
 }
 
 .extension-widget-panel {
-  flex-shrink: 0;
+  display: flex;
+  flex-shrink: 1;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   background: transparent;
+}
+
+/*
+ * The description scrolls; the action rows and hint below the divider stay put,
+ * so a long permission prompt can never hide the choices it ends with. The
+ * actions keep their own overflow guard for the rare prompt with more options
+ * than the panel can show.
+ */
+.extension-widget-body {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .extension-widget-panel-heading {
@@ -681,10 +696,20 @@ button.extension-widget-trigger:focus-visible {
   padding: 3px 12px 8px;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: calc(14px + var(--chat-font-size-offset, 0px));
-  line-height: 1.45;
+  font-size: calc(13px + var(--chat-font-size-offset, 0px));
+  line-height: 1.35;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.extension-widget-actions {
+  flex-shrink: 0;
+  max-height: 45%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  color: var(--text);
 }
 
 .extension-status-line {
@@ -713,6 +738,10 @@ button.extension-widget-trigger:focus-visible {
 
 :root {
   --font-mono: var(--font-noto-mono), 'JetBrains Mono', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
+  /* Declared here, not on .chat-content, so surfaces outside the transcript -
+     the extension widget panel above the editor - track the same setting
+     instead of falling back to the default size. */
+  --chat-font-size-offset: calc(var(--chat-content-font-size, 14px) - 14px);
 }
 
 pre, code {
@@ -720,9 +749,6 @@ pre, code {
 }
 
 /* react-markdown output styles */
-.chat-content {
-  --chat-font-size-offset: calc(var(--chat-content-font-size, 14px) - 14px);
-}
 
 .markdown-body {
   min-width: 0;
