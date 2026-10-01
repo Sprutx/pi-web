@@ -1763,7 +1763,7 @@ function ExtensionDialog({
                   color: "var(--text)",
                   cursor: "pointer",
                   textAlign: "left",
-                  fontSize: 12,
+                  fontSize: 13,
                   overflowWrap: "anywhere",
                   // Match the scroller's padding so keyboard navigation never parks the
                   // option flush against the edge, where whole-pixel scroll snapping and

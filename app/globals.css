@@ -754,7 +754,7 @@ pre, code {
    drops to the same 12px as the request text; the compound selector keeps it
    winning over .markdown-body without relying on source order. */
 [data-extension-option] .extension-option-text {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.4;
 }
 
