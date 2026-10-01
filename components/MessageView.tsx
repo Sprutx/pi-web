@@ -1361,7 +1361,7 @@ function PairedDiffResult({ diff }: {
   );
 }
 
-function SplitPatchView({ text }: { text: string }) {
+export function SplitPatchView({ text }: { text: string }) {
   const files = useMemo(() => parseUnifiedPatch(text), [text]);
   if (!files) return <PatchTextView text={text} />;
   return <SplitFilesView files={files} />;
