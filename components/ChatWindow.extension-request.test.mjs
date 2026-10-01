@@ -38,10 +38,17 @@ test("renders extension confirmation and options as markdown", () => {
 test("preserves title newlines like pi's TUI and keeps long titles from hiding the body", () => {
   const header = dialogSource.slice(dialogSource.indexOf('role="dialog"'), dialogSource.indexOf("{request.method === \"confirm\""));
   assert.match(header, /whiteSpace: "pre-wrap", overflowWrap: "anywhere" \}\}>\{request\.title\}/);
-  // The header scrolls and is allowed to shrink; a percentage max-height would be
-  // dropped here because the dialog's own height comes from its content.
-  assert.match(header, /flex: "1 1 auto", minHeight: 0[\s\S]*?overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
-  assert.doesNotMatch(header, /maxHeight: "\d+%", overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
+  // The header scrolls, may shrink, and must not grow: growing would let it swallow
+  // the free space and clip the options instead. The cap is in pixels because a
+  // percentage would resolve against a content-sized parent.
+  assert.match(header, /flexShrink: 1, minHeight: 0, maxHeight: 240[\s\S]*?overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
+  assert.doesNotMatch(header, /maxHeight: "\d+%/);
+  // Only the header's own style block is inspected: the body scroller below it
+  // may grow, since for confirm/input/editor it holds the content.
+  const headerStyle = (header.match(/<div style=\{\{[^}]*\}\}>/g) ?? [])
+    .find((style) => style.includes("maxHeight: 240")) ?? "";
+  assert.ok(headerStyle.includes("flexShrink: 1"), "header must be able to shrink");
+  assert.ok(!headerStyle.includes('flex: "1 1 auto"'), "header must not grow");
 });
 
 test("pins the answer options below the scrolling text", () => {
