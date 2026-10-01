@@ -5,8 +5,15 @@ import ReactMarkdown, { type Components, type ExtraProps } from "react-markdown"
 import { parsePdfPageFragment, resolveLocalFileHref, shouldOpenLocalFileInApp } from "@/lib/file-links";
 import { encodeFilePathForApi } from "@/lib/file-paths";
 import { markdownRehypePlugins, markdownRemarkPlugins, markdownUrlTransform, normalizeDisplayMath } from "@/lib/markdown";
+import { parseUnifiedPatch } from "@/lib/patch";
 import { ImagePreview } from "./ImagePreview";
 import { MermaidBlock, CodeBlock } from "./MermaidBlock";
+import { SplitPatchView } from "./SplitPatchView";
+
+/** True when the fence really holds a unified patch, not prose tagged as diff. */
+function isUnifiedPatch(text: string): boolean {
+  return parseUnifiedPatch(text) !== null;
+}
 
 const MarkdownLinkContext = createContext(false);
 
@@ -59,6 +66,12 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
               defaultPreview
             />
           );
+        }
+        // A unified patch in a reply gets the same two-column treatment as an
+        // applied tool result, so a final answer can show a diff instead of
+        // describing it. Unparsable text falls back to the plain patch view.
+        if ((lang === "diff" || lang === "patch") && isUnifiedPatch(raw)) {
+          return <SplitPatchView text={raw.replace(/\n$/, "")} />;
         }
         return <CodeBlock code={raw.replace(/\n$/, "")} lang={lang} isStreaming={isStreaming} />;
       }
