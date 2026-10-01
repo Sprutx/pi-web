@@ -1615,7 +1615,11 @@ function ExtensionDialog({
           overflow: "hidden",
         }}
       >
-        <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", maxHeight: "38%", overflowY: "auto" }}>
+        {/* flexShrink lets a long title give way instead of squeezing the options and
+            the buttons out of the window. A percentage max-height would be ignored
+            here: the dialog's own height comes from its content, so a child
+            percentage has no definite height to resolve against. */}
+        <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", overflowY: "auto" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* Pi's TUI shows the title verbatim, newlines included; select/input have no
                 separate message field, so extensions put multi-line text here. */}
@@ -1714,7 +1718,9 @@ function ExtensionDialog({
         <div
           style={{
             flexShrink: 0,
-            maxHeight: "45%",
+            // A prompt with many choices scrolls on its own instead of pushing
+            // the buttons off the bottom.
+            maxHeight: 320,
             overflowY: "auto",
             padding: "10px 14px",
           }}

@@ -38,9 +38,10 @@ test("renders extension confirmation and options as markdown", () => {
 test("preserves title newlines like pi's TUI and keeps long titles from hiding the body", () => {
   const header = dialogSource.slice(dialogSource.indexOf('role="dialog"'), dialogSource.indexOf("{request.method === \"confirm\""));
   assert.match(header, /whiteSpace: "pre-wrap", overflowWrap: "anywhere" \}\}>\{request\.title\}/);
-  // The header keeps a ceiling so a long title scrolls instead of eating the
-  // whole window; the options live outside that scroller.
-  assert.match(header, /maxHeight: "38%", overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
+  // The header scrolls and is allowed to shrink; a percentage max-height would be
+  // dropped here because the dialog's own height comes from its content.
+  assert.match(header, /flex: "1 1 auto", minHeight: 0[\s\S]*?overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
+  assert.doesNotMatch(header, /maxHeight: "\d+%", overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
 });
 
 test("pins the answer options below the scrolling text", () => {
@@ -55,7 +56,7 @@ test("pins the answer options below the scrolling text", () => {
   const options = dialogSource.slice(
     dialogSource.indexOf('{request.method === "select" && request.options.length > 0'),
   );
-  assert.match(options, /flexShrink: 0[\s\S]*?maxHeight: "45%"[\s\S]*?overflowY: "auto"/);
+  assert.match(options, /flexShrink: 0[\s\S]*?maxHeight: 320[\s\S]*?overflowY: "auto"/);
   assert.match(options, /data-extension-option/);
   // The action buttons stay last and never scroll out of reach.
   assert.match(dialogSource, /request\.method === "select"[\s\S]*?justifyContent: "flex-end"[\s\S]*?chat\.cancel/);
