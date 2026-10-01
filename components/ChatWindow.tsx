@@ -1772,7 +1772,7 @@ function ExtensionDialog({
                 }}
               >
                 <div inert>
-                  <MarkdownBody>{option}</MarkdownBody>
+                  <MarkdownBody className="extension-option-text">{option}</MarkdownBody>
                 </div>
               </div>
             ))}
@@ -1780,7 +1780,7 @@ function ExtensionDialog({
         </div>
         )}
 
-        <div style={{ flexShrink: 0, display: "flex", justifyContent: "flex-end", gap: 8, padding: "10px 14px", borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
+        <div style={{ flexShrink: 0, display: "flex", justifyContent: "flex-end", gap: 8, padding: "4px 5px", borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
           <button
             autoFocus={request.method === "confirm" || (request.method === "select" && request.options.length === 0)}
             onClick={() => onRespond(request, { cancelled: true })}

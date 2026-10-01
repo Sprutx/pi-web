@@ -750,6 +750,14 @@ pre, code {
 
 /* react-markdown output styles */
 
+/* Answer rows in the extension dialog sit in a compact strip, so their markdown
+   drops to the same 12px as the request text; the compound selector keeps it
+   winning over .markdown-body without relying on source order. */
+[data-extension-option] .extension-option-text {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .markdown-body {
   min-width: 0;
   max-width: 100%;
