@@ -9,9 +9,16 @@ import { encodeFilePathForApi } from "@/lib/file-paths";
 import { isAudioPath, isVideoPath } from "@/lib/file-types";
 import { isExternalMarkdownHref, jumpToMarkdownFragment, markdownAppUrlTransform, markdownDocumentRehypePlugins, markdownRehypePlugins, markdownRemarkPlugins, markdownTextLayoutRemarkPlugins, markdownUrlTransform, markdownUserRemarkPlugins, normalizeDisplayMath } from "@/lib/markdown";
 import { parseFenceBlock, splitMarkdownBlocks } from "@/lib/markdown-blocks";
+import { parseUnifiedPatch } from "@/lib/patch";
 import { ImagePreview } from "./ImagePreview";
 import { MermaidBlock, CodeBlock } from "./MermaidBlock";
 import { SvgBlock } from "./SvgBlock";
+import { SplitPatchView } from "./MessageView";
+
+/** True when the fence really holds a unified patch, not prose tagged as diff. */
+function isUnifiedPatch(text: string): boolean {
+  return parseUnifiedPatch(text) !== null;
+}
 
 const MarkdownLinkContext = createContext(false);
 
@@ -115,6 +122,12 @@ const MarkdownBlock = memo(function MarkdownBlock({ markdown, remarkPlugins, url
 function renderFence(lang: string, code: string, isStreaming: boolean | undefined) {
   if (lang === "mermaid") return <MermaidBlock code={code} isStreaming={isStreaming} defaultPreview />;
   if (lang === "svg") return <SvgBlock code={code} isStreaming={isStreaming} />;
+  // A unified patch in a reply gets the same two-column treatment as an
+  // applied tool result, so a final answer can show a diff instead of
+  // describing it. Unparsable text falls back to the plain patch view.
+  if ((lang === "diff" || lang === "patch") && isUnifiedPatch(code)) {
+    return <SplitPatchView text={code} />;
+  }
   return <CodeBlock code={code} lang={lang} isStreaming={isStreaming} />;
 }
 
