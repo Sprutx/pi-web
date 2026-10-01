@@ -1623,7 +1623,7 @@ function ExtensionDialog({
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* Pi's TUI shows the title verbatim, newlines included; select/input have no
                 separate message field, so extensions put multi-line text here. */}
-            <div style={{ color: "var(--text)", fontSize: 12, fontWeight: 600, lineHeight: 1.5, fontFamily: "var(--font-mono)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{request.title}</div>
+            <div style={{ color: "var(--text)", fontSize: 12, fontWeight: 400, lineHeight: 1.5, fontFamily: "var(--font-mono)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{request.title}</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 3, color: "var(--text-dim)", fontSize: 11, fontFamily: "var(--font-mono)" }}>
               <span>{t("chat.extensionRequest")}</span>
               {countdown}
@@ -1756,14 +1756,14 @@ function ExtensionDialog({
                 }}
                 style={{
                   width: "100%",
-                  padding: "9px 10px",
+                  padding: "4px 5px",
                   borderRadius: 7,
                   border: "1px solid var(--border)",
                   background: "var(--bg-panel)",
                   color: "var(--text)",
                   cursor: "pointer",
                   textAlign: "left",
-                  fontSize: 13,
+                  fontSize: 12,
                   overflowWrap: "anywhere",
                   // Match the scroller's padding so keyboard navigation never parks the
                   // option flush against the edge, where whole-pixel scroll snapping and
@@ -1785,11 +1785,12 @@ function ExtensionDialog({
             autoFocus={request.method === "confirm" || (request.method === "select" && request.options.length === 0)}
             onClick={() => onRespond(request, { cancelled: true })}
             style={{
-              padding: "6px 10px",
+              padding: "3px 5px",
               borderRadius: 6,
               border: "1px solid var(--border)",
               background: "var(--bg)",
               color: "var(--text-muted)",
+              fontSize: 13,
               cursor: "pointer",
             }}
           >
@@ -1799,11 +1800,12 @@ function ExtensionDialog({
             <button
               onClick={submitValue}
               style={{
-                padding: "6px 10px",
+                padding: "3px 5px",
                 borderRadius: 6,
                 border: "1px solid var(--accent)",
                 background: "var(--accent)",
                 color: "var(--accent-contrast)",
+                fontSize: 13,
                 cursor: "pointer",
               }}
             >
@@ -1813,11 +1815,12 @@ function ExtensionDialog({
             <button
               onClick={submitValue}
               style={{
-                padding: "6px 10px",
+                padding: "3px 5px",
                 borderRadius: 6,
                 border: "1px solid var(--accent)",
                 background: "var(--accent)",
                 color: "var(--accent-contrast)",
+                fontSize: 13,
                 cursor: "pointer",
               }}
             >
