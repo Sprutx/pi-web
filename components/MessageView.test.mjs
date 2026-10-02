@@ -407,6 +407,20 @@ test("a read, a subagent and a flat MCP call show one row per argument", (t) => 
   }
 });
 
+test("fork: a bash command keeps one line and scrolls, other arguments wrap", (t) => {
+  const block = {
+    type: "toolCall",
+    toolCallId: "call-bash-one-line",
+    toolName: "bash",
+    input: { command: `echo ${"x".repeat(300)}`, timeout: 10 },
+  };
+  setToolCallExpanded(block.toolCallId, true);
+  t.after(() => setToolCallExpanded(block.toolCallId, false));
+  const html = renderMessage({ role: "assistant", provider: "anthropic", model: "claude-test", content: [block] });
+  assert.match(html, /<div style="overflow-x:auto;white-space:pre">echo x{300}<\/div>/);
+  assert.ok(html.includes(">10</td>"));
+});
+
 test("a long or multi-line value stays inside the card", (t) => {
   const content = Array.from({ length: 40 }, (_, index) => `line ${index}`).join("\n");
   const block = {

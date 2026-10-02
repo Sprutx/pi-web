@@ -1373,8 +1373,7 @@ function ToolCallBlock({ block, result, notRun, duration, clock, onOpenSubagent,
               overflow: "auto",
               background: "var(--bg-subtle)",
               borderTop: isError ? "1px solid rgba(248,113,113,0.25)" : "1px solid rgba(34,197,94,0.2)",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
+              whiteSpace: "pre",
             }}
           >
             {codemode ? codemode.code.replace(/\r/g, "").trimEnd() : inputStr}
@@ -2255,18 +2254,30 @@ const TOOL_FIELD_BLOCK: CSSProperties = {
   whiteSpace: "pre-wrap",
 };
 
+// Fork: a command keeps its lines as typed. A long one stays one line and
+// scrolls sideways; other arguments wrap as above. The cell takes the rest of
+// the row (width 100%, max-width 0), so the scroll stays inside the card.
+const TOOL_FIELD_COMMAND_CELL: CSSProperties = { ...TOOL_FIELD_VALUE, width: "100%", maxWidth: 0, overflowWrap: "normal" };
+const TOOL_FIELD_COMMAND_LINE: CSSProperties = { overflowX: "auto", whiteSpace: "pre" };
+const TOOL_FIELD_COMMAND_BLOCK: CSSProperties = { ...TOOL_FIELD_BLOCK, whiteSpace: "pre" };
+
 function ToolFieldRows({ fields }: { fields: ToolField[] }) {
   return (
-    <table style={{ borderCollapse: "collapse" }}>
+    <table style={{ borderCollapse: "collapse", width: "100%" }}>
       <tbody>
-        {fields.map((field) => (
-          <tr key={field.key}>
-            <td style={TOOL_FIELD_LABEL}>{field.key}</td>
-            <td style={TOOL_FIELD_VALUE}>
-              {field.multiline ? <pre style={TOOL_FIELD_BLOCK}>{field.value}</pre> : field.value}
-            </td>
-          </tr>
-        ))}
+        {fields.map((field) => {
+          const command = field.key === "command";
+          return (
+            <tr key={field.key}>
+              <td style={TOOL_FIELD_LABEL}>{field.key}</td>
+              <td style={command ? TOOL_FIELD_COMMAND_CELL : TOOL_FIELD_VALUE}>
+                {field.multiline
+                  ? <pre style={command ? TOOL_FIELD_COMMAND_BLOCK : TOOL_FIELD_BLOCK}>{field.value}</pre>
+                  : command ? <div style={TOOL_FIELD_COMMAND_LINE}>{field.value}</div> : field.value}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
