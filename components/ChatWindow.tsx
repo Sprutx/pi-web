@@ -1619,8 +1619,9 @@ function ExtensionDialog({
             space, and once the window reaches its own max-height the options and the
             buttons at the bottom get clipped instead of scrolled. The pixel cap is used
             because a percentage would resolve against a content-sized parent. The floor
-            is what stops a long option list from squeezing the request into a strip. */}
-        <div style={{ flexShrink: 0, minHeight: 88, maxHeight: 240, display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", overflowY: "auto" }}>
+            is what stops a long option list from squeezing the request into a strip,
+            and the shrink factor is what lets it give way instead of crushing the options. */}
+        <div style={{ flexShrink: 1, minHeight: 88, maxHeight: 240, display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", overflowY: "auto" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* Pi's TUI shows the title verbatim, newlines included; select/input have no
                 separate message field, so extensions put multi-line text here. */}
@@ -1784,7 +1785,7 @@ function ExtensionDialog({
         </div>
         )}
 
-        <div style={{ flexShrink: 0, display: "flex", justifyContent: "flex-end", gap: 8, padding: "4px 5px", borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
+        <div style={{ flexShrink: 0, minHeight: 37, display: "flex", justifyContent: "flex-end", gap: 8, padding: "4px 5px", borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
           <button
             autoFocus={request.method === "confirm" || (request.method === "select" && request.options.length === 0)}
             onClick={() => onRespond(request, { cancelled: true })}

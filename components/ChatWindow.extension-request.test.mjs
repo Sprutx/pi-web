@@ -42,7 +42,7 @@ test("preserves title newlines like pi's TUI and keeps long titles from hiding t
   // swallow the free space and clip the options instead, while shrinking without a floor
   // squeezes a long request into a strip once many options show up. The cap is in pixels
   // because a percentage would resolve against a content-sized parent.
-  assert.match(header, /flexShrink: 0, minHeight: 88, maxHeight: 240[\s\S]*?overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
+  assert.match(header, /flexShrink: 1, minHeight: 88, maxHeight: 240[\s\S]*?overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
   assert.doesNotMatch(header, /maxHeight: "\d+%/);
   // Only the header's own style block is inspected: the body scroller below it
   // may grow, since for confirm/input/editor it holds the content.
@@ -67,6 +67,9 @@ test("pins the answer options below the scrolling text", () => {
   // The options yield space when the window is short and scroll inside themselves, so the
   // header floor and the action buttons both survive a long list of choices.
   assert.match(options, /flexShrink: 1,[\s\S]*?minHeight: 0,[\s\S]*?maxHeight: 320[\s\S]*?overflowY: "auto"/);
+  // The button row has its own floor: without one it is the item flexbox squeezes last,
+  // and the actions end up cut off at the bottom of the window.
+  assert.match(dialogSource, /flexShrink: 0, minHeight: 37, display: "flex", justifyContent: "flex-end"/);
   assert.match(options, /data-extension-option/);
   // The action buttons stay last and never scroll out of reach.
   assert.match(dialogSource, /request\.method === "select"[\s\S]*?justifyContent: "flex-end"[\s\S]*?chat\.cancel/);
