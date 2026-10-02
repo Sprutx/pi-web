@@ -1294,8 +1294,7 @@ function ToolCallBlock({ block, result, duration, onOpenSubagent }: { block: Too
             overflow: "auto",
             background: "var(--bg-subtle)",
             borderTop: isError ? "1px solid rgba(248,113,113,0.25)" : "1px solid rgba(34,197,94,0.2)",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
+            whiteSpace: "pre",
           }}
         >
           {codemode ? codemode.code.replace(/\r/g, "").trimEnd() : inputStr}
