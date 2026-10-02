@@ -1618,8 +1618,9 @@ function ExtensionDialog({
         {/* The header may shrink but must never grow: with flex-grow it swallows the free
             space, and once the window reaches its own max-height the options and the
             buttons at the bottom get clipped instead of scrolled. The pixel cap is used
-            because a percentage would resolve against a content-sized parent. */}
-        <div style={{ flexShrink: 1, minHeight: 0, maxHeight: 240, display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", overflowY: "auto" }}>
+            because a percentage would resolve against a content-sized parent. The floor
+            is what stops a long option list from squeezing the request into a strip. */}
+        <div style={{ flexShrink: 0, minHeight: 88, maxHeight: 240, display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", overflowY: "auto" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* Pi's TUI shows the title verbatim, newlines included; select/input have no
                 separate message field, so extensions put multi-line text here. */}
@@ -1717,7 +1718,10 @@ function ExtensionDialog({
         {request.method === "select" && request.options.length > 0 && (
         <div
           style={{
-            flexShrink: 0,
+            // Give way when the window is short: the header keeps its 3-4 line
+            // floor, the buttons keep their place, and the choices scroll here.
+            flexShrink: 1,
+            minHeight: 0,
             // A prompt with many choices scrolls on its own instead of pushing
             // the buttons off the bottom.
             maxHeight: 320,

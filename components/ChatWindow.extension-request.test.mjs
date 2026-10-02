@@ -38,16 +38,17 @@ test("renders extension confirmation and options as markdown", () => {
 test("preserves title newlines like pi's TUI and keeps long titles from hiding the body", () => {
   const header = dialogSource.slice(dialogSource.indexOf('role="dialog"'), dialogSource.indexOf("{request.method === \"confirm\""));
   assert.match(header, /whiteSpace: "pre-wrap", overflowWrap: "anywhere" \}\}>\{request\.title\}/);
-  // The header scrolls, may shrink, and must not grow: growing would let it swallow
-  // the free space and clip the options instead. The cap is in pixels because a
-  // percentage would resolve against a content-sized parent.
-  assert.match(header, /flexShrink: 1, minHeight: 0, maxHeight: 240[\s\S]*?overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
+  // The header scrolls, keeps a 3-4 line floor, and must not grow: growing would let it
+  // swallow the free space and clip the options instead, while shrinking without a floor
+  // squeezes a long request into a strip once many options show up. The cap is in pixels
+  // because a percentage would resolve against a content-sized parent.
+  assert.match(header, /flexShrink: 0, minHeight: 88, maxHeight: 240[\s\S]*?overflowY: "auto" \}\}>[\s\S]*?\{request\.title\}/);
   assert.doesNotMatch(header, /maxHeight: "\d+%/);
   // Only the header's own style block is inspected: the body scroller below it
   // may grow, since for confirm/input/editor it holds the content.
   const headerStyle = (header.match(/<div style=\{\{[^}]*\}\}>/g) ?? [])
     .find((style) => style.includes("maxHeight: 240")) ?? "";
-  assert.ok(headerStyle.includes("flexShrink: 1"), "header must be able to shrink");
+  assert.ok(headerStyle.includes("minHeight: 88"), "header must keep a 3-4 line floor");
   assert.ok(!headerStyle.includes('flex: "1 1 auto"'), "header must not grow");
 });
 
@@ -63,7 +64,9 @@ test("pins the answer options below the scrolling text", () => {
   const options = dialogSource.slice(
     dialogSource.indexOf('{request.method === "select" && request.options.length > 0'),
   );
-  assert.match(options, /flexShrink: 0[\s\S]*?maxHeight: 320[\s\S]*?overflowY: "auto"/);
+  // The options yield space when the window is short and scroll inside themselves, so the
+  // header floor and the action buttons both survive a long list of choices.
+  assert.match(options, /flexShrink: 1,[\s\S]*?minHeight: 0,[\s\S]*?maxHeight: 320[\s\S]*?overflowY: "auto"/);
   assert.match(options, /data-extension-option/);
   // The action buttons stay last and never scroll out of reach.
   assert.match(dialogSource, /request\.method === "select"[\s\S]*?justifyContent: "flex-end"[\s\S]*?chat\.cancel/);
