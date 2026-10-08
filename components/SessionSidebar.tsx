@@ -2591,6 +2591,32 @@ function SessionItem({
           {hovered && !session.transient && (
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
               <button
+                onClick={startRename}
+                title={t("sidebar.rename")}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 32, height: 32, padding: 0,
+                  background: "var(--bg-hover)", border: "1px solid var(--border)",
+                  borderRadius: 7, color: "var(--text-muted)",
+                  cursor: "pointer", flexShrink: 0,
+                  transition: "background 0.12s, color 0.12s, border-color 0.12s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(34,197,94,0.08)";
+                  e.currentTarget.style.color = "#22c55e";
+                  e.currentTarget.style.borderColor = "rgba(34,197,94,0.35)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "var(--bg-hover)";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                  e.currentTarget.style.borderColor = "var(--border)";
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                </svg>
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); onMove?.(); }}
                 disabled={isRunning}
                 title={isRunning ? t("sidebar.moveRunning") : t("sidebar.move")}
@@ -2605,9 +2631,9 @@ function SessionItem({
                 }}
                 onMouseEnter={(e) => {
                   if (isRunning) return;
-                  e.currentTarget.style.background = "var(--bg-selected)";
-                  e.currentTarget.style.color = "var(--accent)";
-                  e.currentTarget.style.borderColor = "rgba(37,99,235,0.35)";
+                  e.currentTarget.style.background = "rgba(59,130,246,0.08)";
+                  e.currentTarget.style.color = "#3b82f6";
+                  e.currentTarget.style.borderColor = "rgba(59,130,246,0.35)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = "var(--bg-hover)";
@@ -2617,34 +2643,8 @@ function SessionItem({
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" />
-                  <path d="M12 3v8" />
-                  <path d="m8 7 4 4 4-4" />
-                </svg>
-              </button>
-              <button
-                onClick={startRename}
-                title={t("sidebar.rename")}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 32, height: 32, padding: 0,
-                  background: "var(--bg-hover)", border: "1px solid var(--border)",
-                  borderRadius: 7, color: "var(--text-muted)",
-                  cursor: "pointer", flexShrink: 0,
-                  transition: "background 0.12s, color 0.12s, border-color 0.12s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "var(--bg-selected)";
-                  e.currentTarget.style.color = "var(--accent)";
-                  e.currentTarget.style.borderColor = "rgba(37,99,235,0.35)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "var(--bg-hover)";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                  e.currentTarget.style.borderColor = "var(--border)";
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                  <path d="M12 11V3" />
+                  <path d="m8 7 4-4 4 4" />
                 </svg>
               </button>
               <button
