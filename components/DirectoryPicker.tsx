@@ -65,10 +65,15 @@ export function DirectoryPicker({ onCancel, onSelect, initialPath, busy = false,
   const [drives, setDrives] = useState<DirectoryEntry[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
   const navigateTo = useCallback(async (directory?: string) => {
     setLoading(true);
     setLoadError(null);
+    setCreating(false);
+    setNewFolderName("");
     try {
       const data = await loadDirectories(directory);
       const nextPath = data.path ?? directory ?? "/";
@@ -93,6 +98,30 @@ export function DirectoryPicker({ onCancel, onSelect, initialPath, busy = false,
     event.preventDefault();
     const candidate = pathInput.trim();
     if (candidate) void navigateTo(candidate);
+  };
+
+  const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = newFolderName.trim();
+    if (!name || creatingFolder || !currentPath) return;
+    setCreatingFolder(true);
+    setLoadError(null);
+    void (async () => {
+      try {
+        const response = await fetch("/api/cwd/mkdir", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parent: currentPath, name }),
+        });
+        const data = await response.json() as { path?: string; error?: string };
+        if (!response.ok || data.error) throw new Error(data.error ?? `HTTP ${response.status}`);
+        await navigateTo(data.path);
+      } catch (cause) {
+        setLoadError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        setCreatingFolder(false);
+      }
+    })();
   };
   const hasUncommittedPath = pathInput.trim() !== currentPath;
   const canSelect = Boolean(currentPath) && !hasUncommittedPath && !busy;
@@ -164,7 +193,63 @@ export function DirectoryPicker({ onCancel, onSelect, initialPath, busy = false,
           >
             {t("directoryPicker.go")}
           </button>
+          <button
+            className="directory-picker-action"
+            type="button"
+            onClick={() => {
+              if (creating) {
+                setCreating(false);
+                setNewFolderName("");
+                setLoadError(null);
+              } else {
+                setCreating(true);
+              }
+            }}
+            disabled={busy || loading || !currentPath}
+            title={creating ? t("i18n.cancel") : t("directoryPicker.newFolder")}
+            style={{ minWidth: 90, height: 36, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-hover)", color: "var(--text-muted)", cursor: busy || loading || !currentPath ? "default" : "pointer", opacity: busy || loading || !currentPath ? 0.6 : 1 }}
+          >
+            {creating ? t("i18n.cancel") : t("directoryPicker.newFolder")}
+          </button>
         </form>
+        {creating && (
+          <form onSubmit={handleCreateSubmit} style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
+            <label htmlFor="new-folder-name" style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}>
+              {t("directoryPicker.newFolderName")}
+            </label>
+            <input
+              className="directory-picker-path"
+              id="new-folder-name"
+              type="text"
+              value={newFolderName}
+              placeholder={t("directoryPicker.newFolderName")}
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => {
+                setNewFolderName(event.target.value);
+                setLoadError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.stopPropagation();
+                  setCreating(false);
+                  setNewFolderName("");
+                }
+              }}
+              style={{ minWidth: 0, flex: 1, height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 6, outline: "none", background: "var(--bg-panel)", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 12 }}
+            />
+            <button
+              className="directory-picker-action"
+              type="submit"
+              disabled={!newFolderName.trim() || creatingFolder}
+              title={t("directoryPicker.create")}
+              style={{ minWidth: 66, height: 36, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-hover)", color: "var(--text-muted)", cursor: !newFolderName.trim() || creatingFolder ? "default" : "pointer", opacity: !newFolderName.trim() || creatingFolder ? 0.6 : 1 }}
+            >
+              {creatingFolder ? t("i18n.checking") : t("directoryPicker.create")}
+            </button>
+          </form>
+        )}
 
         <div className="directory-picker-list" style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "8px 10px" }}>
           {loading ? (
