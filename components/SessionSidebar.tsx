@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { SessionInfo } from "@/lib/types";
 import { listSessionFamilies } from "@/lib/session-family";
 import { loadExplorerOpen, saveExplorerOpen } from "@/lib/file-explorer-state";
@@ -400,6 +401,12 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const [customPathValue, setCustomPathValue] = useState(loadLastCustomCwd);
   const [customPathError, setCustomPathError] = useState<string | null>(null);
   const [customPathValidating, setCustomPathValidating] = useState(false);
+  // Move-session-to-another-project dialog.
+  const [moveSession, setMoveSession] = useState<SessionInfo | null>(null);
+  const [movePickerOpen, setMovePickerOpen] = useState(false);
+  const [moveBusy, setMoveBusy] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [moveDialogPortal, setMoveDialogPortal] = useState<HTMLElement | null>(null);
   const [validatedProject, setValidatedProject] = useState<ValidatedProject | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   // Worktree switcher state
@@ -918,6 +925,52 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     }
   }, []);
 
+  const closeMoveDialog = useCallback(() => {
+    if (moveBusy) return;
+    setMoveSession(null);
+    setMovePickerOpen(false);
+    setMoveError(null);
+  }, [moveBusy]);
+
+  const commitMove = useCallback(async (target: string) => {
+    if (!moveSession || moveBusy) return;
+    setMoveBusy(true);
+    setMoveError(null);
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(moveSession.id)}/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cwd: target }),
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok || data.error) {
+        setMoveError(data.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      setMoveSession(null);
+      setMovePickerOpen(false);
+      await loadSessions(false, true);
+    } catch (e) {
+      setMoveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMoveBusy(false);
+    }
+  }, [moveBusy, loadSessions, moveSession]);
+
+  useEffect(() => {
+    setMoveDialogPortal(document.body);
+  }, []);
+
+  // Escape closes the project list; the directory picker handles its own.
+  useEffect(() => {
+    if (!moveSession || movePickerOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !moveBusy) closeMoveDialog();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [closeMoveDialog, moveBusy, movePickerOpen, moveSession]);
+
   const handleCreateWorktree = useCallback(async () => {
     const branch = wtNewBranch.trim();
     if (!branch || wtBusy || !worktreeState) return;
@@ -1034,6 +1087,17 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       : recentProjects;
   }, [projectFilter, recentProjects]);
 
+  const moveSessionTitle = moveSession
+    ? moveSession.name || moveSession.firstMessage.slice(0, 50) || moveSession.id.slice(0, 12)
+    : "";
+  // Every known project except the one the session already belongs to.
+  const moveProjects = useMemo(
+    () => (moveSession
+      ? recentProjects.filter((project) => project.key !== workspaceKeyOf(moveSession))
+      : []),
+    [moveSession, recentProjects],
+  );
+
   // Sessions of every worktree in the selected project are shown together
   const selectedProject = useMemo(() => projectFor(selectedCwd), [projectFor, selectedCwd]);
 
@@ -1117,6 +1181,115 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             setCustomPathError(null);
           }}
           onSelect={(path) => void commitCustomPath(path)}
+        />
+      )}
+      {moveSession && moveDialogPortal && createPortal(
+        <div
+          role="presentation"
+          onClick={(event) => {
+            if (!moveBusy && event.target === event.currentTarget) closeMoveDialog();
+          }}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 16, background: "rgba(0,0,0,0.35)",
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("sidebar.moveTitle", { title: moveSessionTitle })}
+            style={{
+              width: 440, maxWidth: "100%",
+              maxHeight: "min(520px, calc(100dvh - 32px))",
+              display: "flex", flexDirection: "column", overflow: "hidden",
+              background: "var(--bg)", border: "1px solid var(--border)",
+              borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexShrink: 0, padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ minWidth: 0, color: "var(--text)", fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {t("sidebar.moveTitle", { title: moveSessionTitle })}
+              </div>
+              <button
+                type="button"
+                onClick={closeMoveDialog}
+                disabled={moveBusy}
+                title={t("i18n.close")}
+                aria-label={t("i18n.close")}
+                style={{ flexShrink: 0, padding: "2px 6px", border: 0, background: "none", color: "var(--text-muted)", fontSize: 20, lineHeight: 1, cursor: moveBusy ? "default" : "pointer", opacity: moveBusy ? 0.5 : 1 }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+              {moveProjects.length === 0 && (
+                <div style={{ padding: "12px 14px", fontSize: 12, color: "var(--text-dim)" }}>
+                  {t("sidebar.moveNoProjects")}
+                </div>
+              )}
+              {moveProjects.map((project) => (
+                <button
+                  key={project.key}
+                  type="button"
+                  onClick={() => void commitMove(project.root)}
+                  disabled={moveBusy}
+                  title={project.root}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, width: "100%",
+                    padding: "9px 14px", background: "none",
+                    border: 0, borderBottom: "1px solid var(--border)",
+                    color: "var(--text-muted)", textAlign: "left", fontSize: 12,
+                    cursor: moveBusy ? "default" : "pointer", opacity: moveBusy ? 0.6 : 1,
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" style={{ flexShrink: 0 }} aria-hidden="true">
+                    <path d="M1.5 3h4l1.5 2h7.5v7.5h-13z" />
+                  </svg>
+                  <PathLabel text={displayCwd(project.root, homeDir)} style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: 11 }} />
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => { setMovePickerOpen(true); setMoveError(null); }}
+                disabled={moveBusy}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, width: "100%",
+                  padding: "9px 14px", background: "none", border: 0,
+                  color: "var(--accent)", textAlign: "left", fontSize: 12,
+                  cursor: moveBusy ? "default" : "pointer", opacity: moveBusy ? 0.6 : 1,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" style={{ flexShrink: 0 }} aria-hidden="true">
+                  <path d="M1.5 3h4l1.5 2h7.5v7.5h-13z" />
+                </svg>
+                <span>{t("sidebar.moveOtherFolder")}</span>
+              </button>
+            </div>
+            {moveError && (
+              <div style={{ padding: "8px 14px", color: "#dc2626", fontSize: 11 }}>{moveError}</div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", flexShrink: 0, padding: "10px 14px", borderTop: "1px solid var(--border)" }}>
+              <button
+                type="button"
+                onClick={closeMoveDialog}
+                disabled={moveBusy}
+                style={{ padding: "6px 14px", border: "1px solid var(--border)", borderRadius: 6, background: "none", color: "var(--text-muted)", fontSize: 12, cursor: moveBusy ? "default" : "pointer" }}
+              >
+                {t("i18n.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>,
+        moveDialogPortal,
+      )}
+      {moveSession && movePickerOpen && (
+        <DirectoryPicker
+          initialPath={moveSession.cwd}
+          busy={moveBusy}
+          error={moveError}
+          onCancel={() => setMovePickerOpen(false)}
+          onSelect={(path) => void commitMove(path)}
         />
       )}
       {/* Header */}
@@ -1833,6 +2006,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                     isUnread={familySessions.some((session) => unreadSessionIds.has(session.id))}
                     onClick={() => handleSelectSessionFromList(family.root)}
                     onRenamed={loadSessions}
+                    onMove={() => setMoveSession(family.root)}
                     onDeleted={(id) => {
                       onSessionDeleted?.(id);
                       loadSessions();
@@ -2130,6 +2304,7 @@ function SessionItem({
   isUnread,
   onClick,
   onRenamed,
+  onMove,
   onDeleted,
   depth = 0,
   hasChildren = false,
@@ -2142,6 +2317,7 @@ function SessionItem({
   isUnread?: boolean;
   onClick: () => void;
   onRenamed?: () => void;
+  onMove?: () => void;
   onDeleted?: (id: string) => void;
   depth?: number;
   hasChildren?: boolean;
@@ -2414,6 +2590,37 @@ function SessionItem({
           {/* Action buttons — shown on hover */}
           {hovered && !session.transient && (
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); onMove?.(); }}
+                disabled={isRunning}
+                title={isRunning ? t("sidebar.moveRunning") : t("sidebar.move")}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 32, height: 32, padding: 0,
+                  background: "var(--bg-hover)", border: "1px solid var(--border)",
+                  borderRadius: 7, color: "var(--text-muted)",
+                  cursor: isRunning ? "not-allowed" : "pointer", flexShrink: 0,
+                  opacity: isRunning ? 0.5 : 1,
+                  transition: "background 0.12s, color 0.12s, border-color 0.12s",
+                }}
+                onMouseEnter={(e) => {
+                  if (isRunning) return;
+                  e.currentTarget.style.background = "var(--bg-selected)";
+                  e.currentTarget.style.color = "var(--accent)";
+                  e.currentTarget.style.borderColor = "rgba(37,99,235,0.35)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "var(--bg-hover)";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                  e.currentTarget.style.borderColor = "var(--border)";
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" />
+                  <path d="M12 3v8" />
+                  <path d="m8 7 4 4 4-4" />
+                </svg>
+              </button>
               <button
                 onClick={startRename}
                 title={t("sidebar.rename")}
