@@ -339,6 +339,43 @@ test("marks apply_patch returned failures as errors even when isError is unset",
   assert.doesNotMatch(html, /border:1px solid rgba\(34,197,94,0\.25\)/);
 });
 
+test("shows the applied diff in two columns without expanding the tool call", () => {
+  const block = {
+    type: "toolCall",
+    toolCallId: "call-edit-1",
+    toolName: "edit",
+    input: { path: "/tmp/file.txt" },
+  };
+  const result = {
+    role: "toolResult",
+    toolCallId: block.toolCallId,
+    content: [{ type: "text", text: "ok" }],
+    details: {
+      patch: [
+        "--- /tmp/file.txt",
+        "+++ /tmp/file.txt",
+        "@@ -1,2 +1,2 @@",
+        " one",
+        "-two",
+        "+TWO",
+      ].join("\n"),
+    },
+  };
+  const html = renderMessage({
+    role: "assistant",
+    provider: "anthropic",
+    model: "claude-test",
+    content: [block],
+  }, { toolResults: new Map([[block.toolCallId, result]]) });
+
+  // Блок вызова свёрнут, но диф уже нарисован колонками.
+  assert.doesNotMatch(html, /"oldText"/);
+  assert.match(html, /#f87171/);
+  assert.match(html, /#22c55e/);
+  assert.match(html, />two</);
+  assert.match(html, />TWO</);
+});
+
 test("renders custom-message images as buttons that open a larger preview", () => {
   const html = renderMessage({
     role: "custom",
