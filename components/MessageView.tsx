@@ -1316,6 +1316,13 @@ function ToolCallBlock({ block, result, duration, onOpenSubagent }: { block: Too
         </div>
       )}
 
+      {/* ── Applied diff — visible without expanding: the change is the point ── */}
+      {resultDiff && !patchFiles && (
+        <PairedDiffResult
+          diff={resultDiff}
+        />
+      )}
+
       {/* ── Paired result — only shown when expanded ── */}
       {expanded && result && patchFiles && isError && (
         <PairedResult
@@ -1324,18 +1331,12 @@ function ToolCallBlock({ block, result, duration, onOpenSubagent }: { block: Too
           isError={isError}
         />
       )}
-      {expanded && result && !patchFiles && !codemodeRunning && (
-        resultDiff ? (
-          <PairedDiffResult
-            diff={resultDiff}
-          />
-        ) : (!resultIsEmpty || resultImages.length === 0) && (
-          <PairedResult
-            text={resultText ?? ""}
-            isEmpty={resultIsEmpty}
-            isError={isError}
-          />
-        )
+      {expanded && result && !patchFiles && !codemodeRunning && !resultDiff && (!resultIsEmpty || resultImages.length === 0) && (
+        <PairedResult
+          text={resultText ?? ""}
+          isEmpty={resultIsEmpty}
+          isError={isError}
+        />
       )}
     </div>
   );
