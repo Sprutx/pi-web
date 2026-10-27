@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useImperativeHandle, useLayoutEffect, useState, useCallback, useMemo, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref, type RefObject, type UIEvent as ReactUIEvent } from "react";
+import { createPortal } from "react-dom";
 import type { SessionInfo } from "@/lib/types";
 import { listSessionFamilies, type SessionFamily } from "@/lib/session-family";
 import { dispatchSessionRowContextMenu } from "@/lib/session-row-context-menu";
@@ -101,6 +102,7 @@ import {
   FolderIcon,
   MessageIcon,
   MoreIcon,
+  MoveIcon,
   ForkIcon,
   OpenInNewTabIcon,
   PencilIcon,
@@ -328,6 +330,7 @@ const SESSION_ACTION_LABEL_KEYS: Record<SessionMenuActionId, string> = {
   pin: "sidebar.pin",
   unpin: "sidebar.unpin",
   rename: "sidebar.rename",
+  move: "sidebar.move",
   fork: "sidebar.fork",
   "mark-read": "sidebar.markRead",
   "mark-unread": "sidebar.markUnread",
@@ -342,6 +345,7 @@ function sessionActionIcon(id: SessionMenuActionId): ReactNode {
     case "pin": return <PinIcon />;
     case "unpin": return <PinOffIcon />;
     case "rename": return <PencilIcon />;
+    case "move": return <MoveIcon />;
     case "fork": return <ForkIcon />;
     case "mark-read": return <DotOutlineIcon />;
     case "mark-unread": return <DotIcon />;
@@ -507,6 +511,13 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const [error, setError] = useState<string | null>(null);
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
   const [homeDir, setHomeDir] = useState<string>("");
+  // The session being moved to another project: its project list first, then
+  // the folder picker for "Other folder…".
+  const [moveSession, setMoveSession] = useState<SessionInfo | null>(null);
+  const [movePickerOpen, setMovePickerOpen] = useState(false);
+  const [moveBusy, setMoveBusy] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [moveDialogPortal, setMoveDialogPortal] = useState<HTMLElement | null>(null);
   // Open for the files tab's project list, or for the composer's bar ("new-session").
   const [customPathOpen, setCustomPathOpen] = useState<false | "files" | "new-session">(false);
   const [customPathValue, setCustomPathValue] = useState(loadLastCustomCwd);
@@ -1819,6 +1830,68 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     setRenamingRootId(family.root.id);
   }, []);
 
+  const startMove = useCallback((family: SessionFamily) => {
+    if (family.root.transient) return;
+    setMoveError(null);
+    setMovePickerOpen(false);
+    setMoveSession(family.root);
+  }, []);
+
+  const closeMoveDialog = useCallback(() => {
+    if (moveBusy) return;
+    setMoveSession(null);
+    setMovePickerOpen(false);
+    setMoveError(null);
+  }, [moveBusy]);
+
+  const commitMove = useCallback(async (target: string) => {
+    if (!moveSession || moveBusy) return;
+    setMoveBusy(true);
+    setMoveError(null);
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(moveSession.id)}/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cwd: target }),
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok || data.error) {
+        setMoveError(data.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      setMoveSession(null);
+      setMovePickerOpen(false);
+      await loadSessions(false, true);
+    } catch (e) {
+      setMoveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMoveBusy(false);
+    }
+  }, [moveBusy, loadSessions, moveSession]);
+
+  useEffect(() => {
+    setMoveDialogPortal(document.body);
+  }, []);
+
+  // Escape closes the project list; the directory picker handles its own.
+  useEffect(() => {
+    if (!moveSession || movePickerOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !moveBusy) closeMoveDialog();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [closeMoveDialog, moveBusy, movePickerOpen, moveSession]);
+
+  const moveSessionTitle = moveSession ? sessionRowTitle(moveSession) : "";
+  // Every known project except the one the session already belongs to.
+  const moveProjects = useMemo(
+    () => (moveSession
+      ? recentProjects.filter((project) => project.key !== workspaceKeyOf(moveSession))
+      : []),
+    [moveSession, recentProjects],
+  );
+
   const commitRename = useCallback(async (family: SessionFamily, renameValue: string) => {
     const session = family.root;
     const title = sessionRowTitle(session);
@@ -1993,6 +2066,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       case "pin": setFamilyPinned(family, true); break;
       case "unpin": setFamilyPinned(family, false); break;
       case "rename": startRename(family); break;
+      case "move": startMove(family); break;
       case "fork": void forkFamily(row); break;
       case "mark-read": markFamilyRead(family, true); break;
       case "mark-unread": markFamilyRead(family, false); break;
@@ -2314,7 +2388,9 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       shortcut: entry.shortcut,
       danger: entry.id === "delete",
       disabled: entry.disabledReason !== undefined,
-      disabledReason: entry.disabledReason === "running" ? t("sidebar.cannotArchiveRunning") : undefined,
+      disabledReason: entry.disabledReason === "running"
+        ? t(entry.id === "move" ? "sidebar.moveRunning" : "sidebar.cannotArchiveRunning")
+        : undefined,
       onSelect: ({ shiftKey }) => runSessionAction(entry.id, row, shiftKey),
     };
   });
@@ -2623,6 +2699,8 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     onTogglePinned: handleTogglePinned,
     onArchiveFamily: archiveFamily,
     onRestoreFamily: restoreFamily,
+    onStartRename: startRename,
+    onMoveFamily: startMove,
     onOpenRowMenu: openRowMenu,
     onRowContextMenu: handleContextMenu,
     onRenameCommit: (family: SessionFamily, value: string) => { void commitRename(family, value); },
@@ -2784,6 +2862,113 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       onFocus={(event) => { sidebarFocusRef.current = event.target; }}
       onBlur={(event) => { if (event.relatedTarget === null && !document.hasFocus()) return; if (!event.currentTarget.contains(event.relatedTarget)) sidebarFocusRef.current = null; }}
     >
+      {moveSession && moveDialogPortal && createPortal(
+        <div
+          role="presentation"
+          onClick={(event) => {
+            if (!moveBusy && event.target === event.currentTarget) closeMoveDialog();
+          }}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 16, background: "rgba(0,0,0,0.35)",
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("sidebar.moveTitle", { title: moveSessionTitle })}
+            style={{
+              width: 440, maxWidth: "100%",
+              maxHeight: "min(520px, calc(100dvh - 32px))",
+              display: "flex", flexDirection: "column", overflow: "hidden",
+              background: "var(--bg)", border: "1px solid var(--border)",
+              borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexShrink: 0, padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ minWidth: 0, color: "var(--text)", fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {t("sidebar.moveTitle", { title: moveSessionTitle })}
+              </div>
+              <button
+                type="button"
+                onClick={closeMoveDialog}
+                disabled={moveBusy}
+                title={t("sidebar.dismiss")}
+                aria-label={t("sidebar.dismiss")}
+                style={{ flexShrink: 0, padding: "2px 6px", border: 0, background: "none", color: "var(--text-muted)", fontSize: 20, lineHeight: 1, cursor: moveBusy ? "default" : "pointer", opacity: moveBusy ? 0.5 : 1 }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+              {moveProjects.length === 0 && (
+                <div style={{ padding: "12px 14px", fontSize: 12, color: "var(--text-dim)" }}>
+                  {t("sidebar.moveNoProjects")}
+                </div>
+              )}
+              {moveProjects.map((project) => (
+                <button
+                  key={project.key}
+                  type="button"
+                  onClick={() => void commitMove(project.root)}
+                  disabled={moveBusy}
+                  title={project.root}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, width: "100%",
+                    padding: "9px 14px", background: "none",
+                    border: 0, borderBottom: "1px solid var(--border)",
+                    color: "var(--text-muted)", textAlign: "left", fontSize: 12,
+                    cursor: moveBusy ? "default" : "pointer", opacity: moveBusy ? 0.6 : 1,
+                  }}
+                >
+                  <FolderIcon size={14} />
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: 11 }}>
+                    {homeDir && project.root.startsWith(homeDir) ? `~${project.root.slice(homeDir.length)}` : project.root}
+                  </span>
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => { setMovePickerOpen(true); setMoveError(null); }}
+                disabled={moveBusy}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, width: "100%",
+                  padding: "9px 14px", background: "none", border: 0,
+                  color: "var(--accent)", textAlign: "left", fontSize: 12,
+                  cursor: moveBusy ? "default" : "pointer", opacity: moveBusy ? 0.6 : 1,
+                }}
+              >
+                <FolderIcon size={14} />
+                <span>{t("sidebar.moveOtherFolder")}</span>
+              </button>
+            </div>
+            {moveError && (
+              <div style={{ padding: "8px 14px", color: "#dc2626", fontSize: 11 }}>{moveError}</div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", flexShrink: 0, padding: "10px 14px", borderTop: "1px solid var(--border)" }}>
+              <button
+                type="button"
+                onClick={closeMoveDialog}
+                disabled={moveBusy}
+                style={{ padding: "6px 14px", border: "1px solid var(--border)", borderRadius: 6, background: "none", color: "var(--text-muted)", fontSize: 12, cursor: moveBusy ? "default" : "pointer" }}
+              >
+                {t("sidebar.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>,
+        moveDialogPortal,
+      )}
+      {moveSession && movePickerOpen && (
+        <DirectoryPicker
+          initialPath={moveSession.cwd}
+          busy={moveBusy}
+          error={moveError}
+          onCancel={() => setMovePickerOpen(false)}
+          onSelect={(path) => void commitMove(path)}
+        />
+      )}
       {customPathOpen && (
         <DirectoryPicker
           initialPath={customPathValue}

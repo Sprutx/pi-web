@@ -42,6 +42,8 @@ import {
   ChevronIcon,
   FolderPlusIcon,
   MoreIcon,
+  MoveIcon,
+  PencilIcon,
   PinIcon,
   PlusIcon,
   RestoreIcon,
@@ -114,6 +116,10 @@ export interface SessionTreeProps {
   onTogglePinned(): void;
   onArchiveFamily(family: SessionFamily): void;
   onRestoreFamily(family: SessionFamily): void;
+  /** The row's rename button: the same inline rename as the menu's. */
+  onStartRename(family: SessionFamily): void;
+  /** The row's move button: the project list for this family. */
+  onMoveFamily(family: SessionFamily): void;
   onOpenRowMenu(row: SessionRow, anchor: SidebarMenuAnchor, opener: HTMLElement | null): void;
   /** The sidebar dispatches the downstream event first. */
   onRowContextMenu(row: SessionRow, event: ReactMouseEvent): void;
@@ -668,6 +674,34 @@ const SessionRowView = memo(function SessionRowView({
       )}
       {!status.transient && (
         <span className="session-tree-actions">
+          {layout === "desktop" && (
+            <button
+              type="button"
+              className="session-tree-action session-tree-quick-action session-tree-action-rename"
+              aria-label={t("sidebar.rename")}
+              title={t("sidebar.rename")}
+              onClick={(event) => {
+                event.stopPropagation();
+                handlers.current.onStartRename(family);
+              }}
+            >
+              <PencilIcon size={13} />
+            </button>
+          )}
+          {layout === "desktop" && !status.running && (
+            <button
+              type="button"
+              className="session-tree-action session-tree-quick-action session-tree-action-move"
+              aria-label={t("sidebar.move")}
+              title={t("sidebar.move")}
+              onClick={(event) => {
+                event.stopPropagation();
+                handlers.current.onMoveFamily(family);
+              }}
+            >
+              <MoveIcon size={13} />
+            </button>
+          )}
           {quickAction && (context === "archive" ? (
             <button
               type="button"
@@ -684,7 +718,7 @@ const SessionRowView = memo(function SessionRowView({
           ) : (
             <button
               type="button"
-              className="session-tree-action session-tree-quick-action"
+              className="session-tree-action session-tree-quick-action session-tree-action-archive"
               aria-label={t("sidebar.archive")}
               title={t("sidebar.archive")}
               onClick={(event) => {

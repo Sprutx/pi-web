@@ -168,7 +168,7 @@ test("a group's ⋯ shows its open menu; its + starts a session at once", () => 
   assert.equal(plus, '<button type="button" class="session-tree-group-action" aria-label="New session in app" title="New session in app">');
 });
 
-test("an idle session row shows its short time, branch and both actions", () => {
+test("an idle session row shows its short time, branch and its actions", () => {
   const root = session("idle", { isWorktree: true, branch: "feat/rows" });
   const html = rowMarkup(render({ rows: [sessionRow(root)] }), "session:group:idle");
   assert.match(html, /^<div class="session-tree-row session-tree-session" style="top:0;height:28px" data-row-key="session:group:idle">/);
@@ -177,7 +177,13 @@ test("an idle session row shows its short time, branch and both actions", () => 
   // The branch keeps the upstream icon and type; the tooltip keeps the ⑂ glyph.
   assert.match(html, /<a class="session-tree-main" href="\?session=idle" title="[^"]*"><span class="session-tree-title">first idle<\/span><span class="session-tree-branch"><svg width="10" height="10"[^>]*class="session-tree-branch-icon" aria-hidden="true">[\s\S]*?<\/svg>feat\/rows<\/span><span class="session-tree-meta">5m<\/span><\/a>/);
   assert.match(html, /title="first idle\n3 msgs · 5 minutes ago · ⑂ feat\/rows"/);
-  assert.match(html, /class="session-tree-action session-tree-quick-action" aria-label="Archive" title="Archive"/);
+  // Left to right: rename, move, archive, then the menu. Each verb has its own class for its tint.
+  assert.match(html, /class="session-tree-action session-tree-quick-action session-tree-action-rename" aria-label="Rename" title="Rename"/);
+  assert.match(html, /class="session-tree-action session-tree-quick-action session-tree-action-move" aria-label="Move to another project" title="Move to another project"/);
+  assert.match(html, /class="session-tree-action session-tree-quick-action session-tree-action-archive" aria-label="Archive" title="Archive"/);
+  assert.ok(html.indexOf("session-tree-action-rename") < html.indexOf("session-tree-action-move"));
+  assert.ok(html.indexOf("session-tree-action-move") < html.indexOf("session-tree-action-archive"));
+  assert.ok(html.indexOf("session-tree-action-archive") < html.indexOf("session-tree-more-action"));
   assert.match(html, /class="session-tree-action session-tree-more-action" aria-label="More actions" title="More actions" aria-haspopup="menu" aria-expanded="false"/);
   assert.doesNotMatch(html, /aria-current/);
 });
@@ -474,12 +480,15 @@ test("row CSS stays flat, themed and quiet", () => {
   assert.doesNotMatch(css, /&/, "no CSS nesting");
   assert.doesNotMatch(css, /@starting-style|prefers-color-scheme/);
   const colors = new Set((css.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).map((color) => color.toLowerCase()));
-  for (const color of colors) assert.ok(["#ef4444", "#0891b2", "#d97706", "#f87171", "#fff"].includes(color), `unexpected color ${color}`);
+  // #22c55e, #3b82f6 and #eab308 are the hover tints of a row's rename, move
+  // and archive buttons: one colour per verb, as the delete button's red.
+  const VERB_TINTS = ["#22c55e", "#3b82f6", "#eab308"];
+  for (const color of colors) assert.ok(["#ef4444", "#0891b2", "#d97706", "#f87171", "#fff", ...VERB_TINTS].includes(color), `unexpected color ${color}`);
   // Three text colors: content, labels, meta (plus the accent for states,
   // the errors' red and the delete button's white). No mixes of their own.
   const textColors = new Set([...css.matchAll(/(?:^|[\s;{])color: ([^;]+);/g)].map((match) => match[1]));
   for (const color of textColors) {
-    assert.ok(["var(--text)", "var(--text-muted)", "var(--text-dim)", "var(--accent)", "inherit", "#f87171", "#fff"].includes(color), `unexpected text color ${color}`);
+    assert.ok(["var(--text)", "var(--text-muted)", "var(--text-dim)", "var(--accent)", "inherit", "#f87171", "#fff", ...VERB_TINTS].includes(color), `unexpected text color ${color}`);
   }
   assert.doesNotMatch(css, /color: color-mix\(in srgb, var\(--text\)/);
 });

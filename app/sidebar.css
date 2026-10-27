@@ -415,6 +415,31 @@ a.session-tree-main {
   display: flex;
 }
 
+/* Each verb tints its own hover: green for rename, blue for move, yellow for
+   archive (the menu's Delete is red). The same recipe for all: a faint fill,
+   the solid colour, a ring in place of a border. Written with the selected
+   row's selector too, which otherwise wins with its neutral hover. */
+.session-tree .session-tree-session .session-tree-action-rename:hover,
+.session-tree .session-tree-session.is-selected .session-tree-action-rename:hover {
+  background: rgba(34, 197, 94, 0.08);
+  color: #22c55e;
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.35);
+}
+
+.session-tree .session-tree-session .session-tree-action-move:hover,
+.session-tree .session-tree-session.is-selected .session-tree-action-move:hover {
+  background: rgba(59, 130, 246, 0.08);
+  color: #3b82f6;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.35);
+}
+
+.session-tree .session-tree-session .session-tree-action-archive:hover,
+.session-tree .session-tree-session.is-selected .session-tree-action-archive:hover {
+  background: rgba(234, 179, 8, 0.08);
+  color: #eab308;
+  box-shadow: inset 0 0 0 1px rgba(234, 179, 8, 0.35);
+}
+
 .session-tree-meta.is-running {
   color: var(--accent);
 }
