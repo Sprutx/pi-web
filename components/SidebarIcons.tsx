@@ -144,6 +144,17 @@ export function TrashIcon(props: SidebarIconProps) {
   );
 }
 
+/** Folder with an arrow out of it: "move to another project". */
+export function MoveIcon(props: SidebarIconProps) {
+  return (
+    <SidebarIcon {...props}>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+      <path d="M12 16v-6" />
+      <path d="m9.5 12.5 2.5-2.5 2.5 2.5" />
+    </SidebarIcon>
+  );
+}
+
 export function PencilIcon(props: SidebarIconProps) {
   return <SidebarIcon {...props}><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></SidebarIcon>;
 }
