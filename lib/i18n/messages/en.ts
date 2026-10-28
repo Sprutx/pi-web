@@ -50,6 +50,7 @@ export const enLocale: LocalePlugin = {
     "settings.themeZenburn": "Zenburn",
     "settings.themeSystem": "System",
     "settings.thinkingExpandedDefault": "Expand thinking blocks by default",
+    "settings.stayAtReplyStart": "Stay at start of long replies",
     "settings.chat": "Chat",
     "settings.enterSendMode": "Send key",
     "settings.enterSendModeEnter": "Enter",

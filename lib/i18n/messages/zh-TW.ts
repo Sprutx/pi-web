@@ -50,6 +50,7 @@ export const zhTWLocale: LocalePlugin = {
     "settings.themeZenburn": "Zenburn",
     "settings.themeSystem": "跟隨系統",
     "settings.thinkingExpandedDefault": "預設展開思考區塊",
+    "settings.stayAtReplyStart": "長回覆停留在開頭",
     "settings.chat": "對話",
     "settings.enterSendMode": "傳送按鍵",
     "settings.enterSendModeEnter": "Enter",

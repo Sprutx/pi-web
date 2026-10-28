@@ -60,6 +60,34 @@ export function shouldShowScrollToLatest(
   return !isScrollAtTail(scrollTop, clientHeight, scrollHeight, tolerance);
 }
 
+// Where live-follow scrolls to while a part of the reply streams: the tail,
+// but never past the part's own top, so a long part stays readable from its start.
+// A reader already below that top is not moved.
+export function getLiveFollowTop(
+  scrollTop: number,
+  clientHeight: number,
+  scrollHeight: number,
+  partTop: number,
+  margin = 16,
+): number {
+  const maxTop = Math.max(0, scrollHeight - clientHeight);
+  const anchorTop = Math.max(0, partTop - margin);
+  if (scrollTop > anchorTop) return scrollTop;
+  return Math.min(maxTop, anchorTop);
+}
+
+// Where the view goes when a run ends: the top of the final answer, or the tail
+// when the answer is shorter than the screen.
+export function getFinalAnswerTop(
+  answerTop: number,
+  clientHeight: number,
+  scrollHeight: number,
+  margin = 16,
+): number {
+  const maxTop = Math.max(0, scrollHeight - clientHeight);
+  return Math.min(maxTop, Math.max(0, answerTop - margin));
+}
+
 export function getPromptAnchorSpacerHeight(
   targetTop: number,
   contentEnd: number,

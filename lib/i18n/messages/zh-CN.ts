@@ -50,6 +50,7 @@ export const zhCNLocale: LocalePlugin = {
     "settings.themeZenburn": "Zenburn",
     "settings.themeSystem": "跟随系统",
     "settings.thinkingExpandedDefault": "默认展开思考块",
+    "settings.stayAtReplyStart": "长回复停留在开头",
     "settings.chat": "对话",
     "settings.enterSendMode": "发送按键",
     "settings.enterSendModeEnter": "Enter",
