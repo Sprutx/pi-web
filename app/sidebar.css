@@ -367,6 +367,12 @@ a.session-tree-main {
   white-space: nowrap;
 }
 
+/* The message count, left of the time (or the dot, spinner, project). */
+.session-tree-count {
+  margin-right: 6px;
+  color: var(--text-dim);
+}
+
 /* A pinned row's project: meta, in the time's type (.session-tree-meta). */
 .session-tree-project {
   display: inline-block;
