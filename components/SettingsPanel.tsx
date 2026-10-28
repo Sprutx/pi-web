@@ -29,6 +29,10 @@ import {
   isThinkingExpandedByDefault,
   setThinkingExpandedByDefault,
 } from "@/lib/thinking-expansion-preference";
+import {
+  isStayAtReplyStartEnabled,
+  setStayAtReplyStartEnabled,
+} from "@/lib/stay-at-reply-start-preference";
 import { ModelsConfig } from "./ModelsConfig";
 import { setupPushSubscription } from "@/lib/push-client";
 import { SkillsConfig } from "./SkillsConfig";
@@ -90,6 +94,7 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
   const [builtinToolsSaving, setBuiltinToolsSaving] = useState(false);
   const [builtinToolsError, setBuiltinToolsError] = useState<string | null>(null);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const [stayAtReplyStart, setStayAtReplyStart] = useState(true);
   const [cacheMissNotices, setCacheMissNotices] = useState<boolean | null>(null);
   const [cacheMissNoticesSaving, setCacheMissNoticesSaving] = useState(false);
   const [cacheMissNoticesError, setCacheMissNoticesError] = useState<string | null>(null);
@@ -101,6 +106,7 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
 
   useEffect(() => {
     setThinkingExpanded(isThinkingExpandedByDefault());
+    setStayAtReplyStart(isStayAtReplyStartEnabled());
     void fetch("/api/web-auth")
       .then((response) => response.ok ? response.json() : null)
       .then((data: { enabled?: boolean } | null) => setWebAuthEnabled(data?.enabled === true))
@@ -356,6 +362,17 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
               onChange={(enabled) => {
                 setThinkingExpandedByDefault(enabled);
                 setThinkingExpanded(enabled);
+              }}
+            />
+          </div>
+          <div className="settings-chat-option settings-chat-switch-option">
+            <span>{t("settings.stayAtReplyStart")}</span>
+            <ConfigSwitch
+              checked={stayAtReplyStart}
+              label={t("settings.stayAtReplyStart")}
+              onChange={(enabled) => {
+                setStayAtReplyStartEnabled(enabled);
+                setStayAtReplyStart(enabled);
               }}
             />
           </div>
