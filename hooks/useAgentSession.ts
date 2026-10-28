@@ -46,8 +46,12 @@ import {
   CHAT_SCROLL_REATTACH_TOLERANCE,
   CHAT_SCROLL_TAIL_TOLERANCE,
   getLiveFollowAttached,
+  getFinalAnswerTop,
+  getLiveFollowTop,
+  isScrollAtTail,
   shouldShowScrollToLatest,
 } from "@/lib/chat-lazy-load";
+import { isStayAtReplyStartEnabled } from "@/lib/stay-at-reply-start-preference";
 import {
   createStreamingStore,
   type ClientAssistantMessageEvent,
@@ -431,6 +435,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const lastUserMsgRef = useRef<HTMLDivElement | null>(null);
   const pendingScrollToUserRef = useRef(false);
   const isNearBottomRef = useRef(true);
+  // True while live-follow holds the view at the top of a long part, not at the tail.
+  const liveFollowHeldRef = useRef(false);
   const previousScrollTopRef = useRef(0);
   const liveFollowFrameRef = useRef<number | null>(null);
   const executeBashRef = useRef<(command: string, excludeFromContext: boolean) => Promise<void> | undefined>(undefined);
@@ -519,7 +525,54 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // streaming content follows the tail.
     container.scrollTo({ top: container.scrollHeight, behavior });
     previousScrollTopRef.current = container.scrollTop;
+    liveFollowHeldRef.current = false;
   }, []);
+
+  // Live-follow: the tail while the streaming part fits the screen, then its top.
+  const scrollLiveTail = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    if (!isStayAtReplyStartEnabled()) {
+      scrollToBottom("auto");
+      return;
+    }
+    const blocks = container.querySelectorAll("[data-message-blocks]");
+    const part = blocks[blocks.length - 1]?.lastElementChild;
+    if (!part) {
+      scrollToBottom("auto");
+      return;
+    }
+    const partTop = part.getBoundingClientRect().top
+      - container.getBoundingClientRect().top
+      + container.scrollTop;
+    const top = getLiveFollowTop(
+      container.scrollTop, container.clientHeight, container.scrollHeight, partTop,
+    );
+    liveFollowHeldRef.current = top < container.scrollHeight - container.clientHeight - CHAT_SCROLL_TAIL_TOLERANCE;
+    if (top === container.scrollTop) return;
+    container.scrollTo({ top, behavior: "auto" });
+    previousScrollTopRef.current = container.scrollTop;
+  }, [scrollToBottom]);
+
+  // The run ended and its steps folded into one row: put the final answer's top
+  // at the top of the view instead of letting the browser clamp to the bottom.
+  const scrollFinalAnswerToStart = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const answers = container.querySelectorAll("[data-message-role=\"assistant\"]");
+    const answer = answers[answers.length - 1];
+    if (!answer) {
+      scrollToBottom("auto");
+      return;
+    }
+    const answerTop = answer.getBoundingClientRect().top
+      - container.getBoundingClientRect().top
+      + container.scrollTop;
+    const top = getFinalAnswerTop(answerTop, container.clientHeight, container.scrollHeight);
+    container.scrollTo({ top, behavior: "auto" });
+    previousScrollTopRef.current = container.scrollTop;
+    liveFollowHeldRef.current = top < container.scrollHeight - container.clientHeight - CHAT_SCROLL_TAIL_TOLERANCE;
+  }, [scrollToBottom]);
 
   const currentModel = currentModelOverride ?? liveModel ?? data?.context.model ?? pendingModel ?? null;
   const displayModel = isNew
@@ -1567,7 +1620,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           // streaming content; otherwise scrollIntoView may target stale layout.
           liveFollowFrameRef.current = requestAnimationFrame(() => {
             liveFollowFrameRef.current = null;
-            if (isNearBottomRef.current) scrollToBottom("auto");
+            if (isNearBottomRef.current) scrollLiveTail();
           });
         }
         break;
@@ -1717,7 +1770,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         setExtensionDialogs((queue) => removeExtensionUiRequest(queue, event.id as string));
         break;
     }
-  }, [addNotice, applyContextUsage, cancelEventStreamGrace, dispatch, handleExtensionUiRequest, loadSession, notifyPromptStage, onAgentEnd, onToolEnd, refreshContextUsage, scheduleEventStreamClose, scrollToBottom, settleUiStage, syncLiveModel]);
+  }, [addNotice, applyContextUsage, cancelEventStreamGrace, dispatch, handleExtensionUiRequest, loadSession, notifyPromptStage, onAgentEnd, onToolEnd, refreshContextUsage, scheduleEventStreamClose, scrollLiveTail, settleUiStage, syncLiveModel]);
   handleAgentEventRef.current = handleAgentEvent;
 
   const handleSend = useCallback(async (message: string, images?: AttachedImage[]) => {
@@ -2482,6 +2535,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       liveFollowFrameRef.current = null;
     }
     isNearBottomRef.current = true;
+    liveFollowHeldRef.current = false;
     previousScrollTopRef.current = targetTop;
     container.scrollTo({ top: targetTop, behavior: "auto" });
   }, []);
@@ -2490,6 +2544,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const container = scrollContainerRef.current;
     if (container) {
       const { scrollTop, clientHeight, scrollHeight } = container;
+      const previousTop = previousScrollTopRef.current;
       const isAgentRunning = agentRunningRef.current;
       const wasAttached = isNearBottomRef.current;
       const isAttached = getLiveFollowAttached(
@@ -2504,16 +2559,19 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       );
       isNearBottomRef.current = isAttached;
       previousScrollTopRef.current = scrollTop;
+      // Only the reader scrolling down to the tail ends the hold: a clamp by the
+      // browser, after the content got shorter, moves the view up.
+      if (scrollTop > previousTop && isScrollAtTail(scrollTop, clientHeight, scrollHeight)) liveFollowHeldRef.current = false;
       const shouldShow = shouldShowScrollToLatest(scrollTop, clientHeight, scrollHeight);
       setShowScrollToBottom((previous) => (previous === shouldShow ? previous : shouldShow));
       if (!wasAttached && isAttached && isAgentRunning) {
-        scrollToBottom("auto");
+        scrollLiveTail();
       } else if (!isAttached && liveFollowFrameRef.current !== null) {
         cancelAnimationFrame(liveFollowFrameRef.current);
         liveFollowFrameRef.current = null;
       }
     }
-  }, [scrollToBottom]);
+  }, [scrollLiveTail]);
 
   // Load session on mount
   useEffect(() => {
@@ -2674,10 +2732,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         initialScrollDoneRef.current = true;
         scrollToBottom("instant");
       } else if (!agentRunningRef.current && isNearBottomRef.current) {
-        scrollToBottom("auto");
+        if (liveFollowHeldRef.current) scrollFinalAnswerToStart();
+        else scrollToBottom("auto");
       }
     }
-  }, [messages.length, agentRunning, scrollToBottom, scrollUserMsgToTop]);
+  }, [messages.length, agentRunning, scrollToBottom, scrollFinalAnswerToStart, scrollUserMsgToTop]);
 
   // Load the model list with bounded retries; loadModels exposes each failure.
   useEffect(() => {
