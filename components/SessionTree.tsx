@@ -640,7 +640,10 @@ const SessionRowView = memo(function SessionRowView({
           {branch}
         </span>
       )}
-      <span className={`session-tree-meta${metaState}`} title={metaTitle}>{meta}</span>
+      <span className={`session-tree-meta${metaState}`} title={metaTitle}>
+        {!root.detailsPending && <span className="session-tree-count">{root.messageCount}msg</span>}
+        {meta}
+      </span>
     </>
   );
 

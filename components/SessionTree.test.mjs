@@ -196,7 +196,7 @@ test("an idle session row shows its short time, branch and its actions", () => {
   // Nothing before the title: it gets the room; the time sits at the right.
   // A saved session's title is a real link to it (middle-click, Ctrl/Cmd-click).
   // The branch keeps the upstream icon and type; the tooltip keeps the ⑂ glyph.
-  assert.match(html, /<a class="session-tree-main" href="\?session=idle" title="[^"]*"><span class="session-tree-title">first idle<\/span><span class="session-tree-branch"><svg width="10" height="10"[^>]*class="session-tree-branch-icon" aria-hidden="true">[\s\S]*?<\/svg>feat\/rows<\/span><span class="session-tree-meta">5m<\/span><\/a>/);
+  assert.match(html, /<a class="session-tree-main" href="\?session=idle" title="[^"]*"><span class="session-tree-title">first idle<\/span><span class="session-tree-branch"><svg width="10" height="10"[^>]*class="session-tree-branch-icon" aria-hidden="true">[\s\S]*?<\/svg>feat\/rows<\/span><span class="session-tree-meta"><span class="session-tree-count">\d+msg<\/span>5m<\/span><\/a>/);
   assert.match(html, /title="first idle\n3 msgs · 5 minutes ago · ⑂ feat\/rows"/);
   // Left to right: rename, move, archive, then the menu. Each verb has its own class for its tint.
   assert.match(html, /class="session-tree-action session-tree-quick-action session-tree-action-rename" aria-label="Rename" title="Rename"/);
@@ -236,7 +236,7 @@ test("a running row shows the labelled spinner and cannot be archived from the r
   const html = rowMarkup(render({ rows: [sessionRow(session("run"), { status: { running: true, unread: true } })] }), "session:group:run");
   // The spinner takes the time's place at the right, and the row says it is running.
   assert.match(html, /class="session-tree-row session-tree-session is-running"/);
-  assert.match(html, /<span class="session-tree-title">first run<\/span><span class="session-tree-meta is-running" title="Agent running…"><svg[^>]*class="sidebar-spin" role="img" aria-label="Agent running…"/);
+  assert.match(html, /<span class="session-tree-title">first run<\/span><span class="session-tree-meta is-running" title="Agent running…"><span class="session-tree-count">\d+msg<\/span><svg[^>]*class="sidebar-spin" role="img" aria-label="Agent running…"/);
   assert.doesNotMatch(html, /session-tree-slot/);
   assert.doesNotMatch(html, /session-tree-unread/);
   assert.doesNotMatch(html, /aria-label="Archive"/);
@@ -245,7 +245,7 @@ test("a running row shows the labelled spinner and cannot be archived from the r
 
 test("an unread row shows the labelled unread dot", () => {
   const html = rowMarkup(render({ rows: [sessionRow(session("new"), { status: { unread: true } })] }), "session:group:new");
-  assert.match(html, /<span class="session-tree-meta is-unread" title="New activity"><span class="session-tree-unread" role="img" aria-label="New session activity"><\/span><\/span>/);
+  assert.match(html, /<span class="session-tree-meta is-unread" title="New activity"><span class="session-tree-count">\d+msg<\/span><span class="session-tree-unread" role="img" aria-label="New session activity"><\/span><\/span>/);
 });
 
 test("an awaiting row shows the amber dot in the spinner's slot", () => {
@@ -255,7 +255,7 @@ test("an awaiting row shows the amber dot in the spinner's slot", () => {
   // Awaiting wins the slot (it is the one thing worth knowing), and the row is
   // still the running row it is: same class, same actions, no archive button.
   assert.match(html, /class="session-tree-row session-tree-session is-running"/);
-  assert.match(html, /<span class="session-tree-title">first ask<\/span><span class="session-tree-meta is-awaiting" title="Agent waiting for your input"><span class="session-tree-awaiting" role="img" aria-label="Agent waiting for your input"><\/span><\/span>/);
+  assert.match(html, /<span class="session-tree-title">first ask<\/span><span class="session-tree-meta is-awaiting" title="Agent waiting for your input"><span class="session-tree-count">\d+msg<\/span><span class="session-tree-awaiting" role="img" aria-label="Agent waiting for your input"><\/span><\/span>/);
   assert.doesNotMatch(html, /sidebar-spin/);
   assert.doesNotMatch(html, /session-tree-unread/);
   assert.doesNotMatch(html, /aria-label="Archive"/);
@@ -314,7 +314,7 @@ test("every saved row's title links to its session, encoded, in every context an
 
 test("pinned rows name their project and archived rows offer restore with the family's time", () => {
   const pinned = rowMarkup(render({ rows: [sessionRow(session("pin"), { context: "pinned" })] }), "session:pinned:pin");
-  assert.match(pinned, /<span class="session-tree-meta"><span class="session-tree-project">app<\/span><\/span>/);
+  assert.match(pinned, /<span class="session-tree-meta"><span class="session-tree-count">\d+msg<\/span><span class="session-tree-project">app<\/span><\/span>/);
   assert.match(pinned, /aria-label="Archive"/);
 
   // Never the archive time: a session whose last message was two hours ago
@@ -324,7 +324,7 @@ test("pinned rows name their project and archived rows offer restore with the fa
   }), "session:archive:old");
   assert.match(archived, /class="session-tree-row session-tree-session is-archived"/);
   assert.doesNotMatch(archived, /session-tree-slot/);
-  assert.match(archived, /<span class="session-tree-meta">2h<\/span>/);
+  assert.match(archived, /<span class="session-tree-meta"><span class="session-tree-count">\d+msg<\/span>2h<\/span>/);
   assert.match(archived, /aria-label="Restore" title="Restore"/);
   assert.doesNotMatch(archived, /aria-label="Archive"/);
 });
