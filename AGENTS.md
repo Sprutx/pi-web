@@ -324,3 +324,18 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+---
+
+## Fork: Sprutx/pi-web
+
+This fork keeps its own changes on a single branch, `sprutx/main`, on top of an upstream release (`agegr/pi-web`, remote `upstream`). Each upstream base is pinned by a tag `vY-fork` (`v0.9.3-fork`, `v0.12.2-fork`). Never push to `upstream`: push is disabled there.
+
+Moving the fork to a new upstream release `vX` happens only on the owner's command and only in this order:
+
+1. Tag the current `sprutx/main` as `vY-fork` (`vY` is the current base) and push it: `git push origin vY-fork`.
+2. `git rebase vX`.
+3. `git push origin sprutx/main --force-with-lease`.
+4. Update the fork pin in `versions.lock.json` of the `pi-custom` repository.
+
+Do not start the rebase without the tag: after the force-push only the tag keeps the old commits reachable, and the pinned sha may become unfetchable.
