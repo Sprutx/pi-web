@@ -1791,6 +1791,8 @@ export const zhTWLocale: LocalePlugin = {
     "i18n.after": "變更後",
     "diff.unchangedLine": "1 行未變更",
     "diff.unchangedLines": "{count} 行未變更",
+    "i18n.newFile": "新檔案",
+    "i18n.deletedFile": "已刪除的檔案",
     "i18n.sessionComplete": "工作階段已完成",
     "i18n.taskFinished": "任務已完成。",
     "i18n.attentionNeeded": "Pi 需要你處理",

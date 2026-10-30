@@ -44,6 +44,41 @@ test("a diff fence renders as the two-column view used by tool results", () => {
   assert.ok(html.includes("useState(&quot;x&quot;)"), "нет текста добавленной строки");
 });
 
+test("a one-file diff fence names the file above both columns", () => {
+  const html = toHtml("```diff\n" + PATCH + "\n```");
+
+  // No tool header names the file in a reply, so the --- / +++ paths show,
+  // without git's a/ and b/ prefixes.
+  assert.equal(html.split('title="components/ChatInput.tsx"').length - 1, 2, "нет пути над обеими колонками");
+  assert.ok(!html.includes("a/components/"), "префикс a/ не срезан");
+  assert.ok(!html.includes("b/components/"), "префикс b/ не срезан");
+});
+
+test("a diff fence without --- / +++ lines shows no path header", () => {
+  const hunkOnly = PATCH.split("\n").slice(2).join("\n");
+  const html = toHtml("```diff\n" + hunkOnly + "\n```");
+
+  assert.ok(splitGrid(html), "ожидалась сетка из двух колонок");
+  assert.ok(!html.includes("ChatInput.tsx"), "без путей заголовка быть не должно");
+  assert.ok(!html.includes('title="Before"'), "без путей заголовка быть не должно");
+});
+
+test("a new file's /dev/null side is labeled, not shown as a path", () => {
+  const html = toHtml("```diff\n--- /dev/null\n+++ b/notes.md\n@@ -0,0 +1 @@\n+hello\n```");
+
+  assert.ok(html.includes('title="New file"'), "нет подписи нового файла");
+  assert.ok(html.includes('title="notes.md"'), "нет пути нового файла");
+  assert.ok(!html.includes("/dev/null"), "/dev/null показан как путь");
+});
+
+test("a deleted file's /dev/null side is labeled, not shown as a path", () => {
+  const html = toHtml("```diff\n--- a/notes.md\n+++ /dev/null\n@@ -1 +0,0 @@\n-hello\n```");
+
+  assert.ok(html.includes('title="notes.md"'), "нет пути удалённого файла");
+  assert.ok(html.includes('title="Deleted file"'), "нет подписи удалённого файла");
+  assert.ok(!html.includes("/dev/null"), "/dev/null показан как путь");
+});
+
 test("a patch fence renders the same way", () => {
   const html = toHtml("```patch\n" + PATCH + "\n```");
 

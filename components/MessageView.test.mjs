@@ -793,6 +793,34 @@ test("marks apply_patch returned failures as errors even when isError is unset",
   assert.doesNotMatch(html, /border:1px solid rgba\(34,197,94,0\.25\)/);
 });
 
+test("labels the missing old side of a file an apply_patch adds", () => {
+  const block = {
+    type: "toolCall",
+    toolCallId: "call-patch-2",
+    toolName: "apply_patch",
+    input: {
+      input: "*** Begin Patch\n*** Add File: src/new.ts\n+fresh\n*** Update File: src/kept.ts\n-old\n+new\n*** End Patch",
+    },
+  };
+  clearExpandedToolCalls();
+  setToolCallExpanded(block.toolCallId, true);
+  try {
+    const html = renderMessage({
+      role: "assistant",
+      provider: "openai",
+      model: "gpt-test",
+      content: [block],
+    });
+
+    assert.match(html, /title="New file"/);
+    assert.match(html, /title="src\/new\.ts"/);
+    assert.equal(html.split('title="src/kept.ts"').length - 1, 2, "нет пути изменённого файла");
+    assert.doesNotMatch(html, /title="Before"|title="After"/);
+  } finally {
+    clearExpandedToolCalls();
+  }
+});
+
 test("collapses a displayed custom message from its header alone", () => {
   const custom = (props) => renderMessage({
     role: "custom",
@@ -858,6 +886,9 @@ test("shows the applied diff in two columns without expanding the tool call", ()
   assert.match(html, /#22c55e/);
   assert.match(html, />two</);
   assert.match(html, />TWO</);
+  // The tool header already names the file: a one-file diff gets no path header.
+  assert.doesNotMatch(html, /title="\/tmp\/file\.txt"/);
+  assert.equal(html.split("/tmp/file.txt").length - 1, 1, "путь должен быть только в заголовке инструмента");
 });
 
 test("renders custom-message images as buttons that open a larger preview", () => {
@@ -1238,8 +1269,8 @@ test("one column names a file section by the file's own path, not by Before and 
 `);
   const html = renderPatchFiles(files, "stacked");
 
-  assert.ok(html.includes("b/one.ts"), "the first file names its section");
-  assert.ok(html.includes("b/two.ts"), "the second file names its section");
+  assert.ok(html.includes(">one.ts<"), "the first file names its section");
+  assert.ok(html.includes(">two.ts<"), "the second file names its section");
   assert.ok(!html.includes(">Before<") && !html.includes(">After<"), "two labels over one column read as two columns");
 });
 
@@ -1285,6 +1316,6 @@ test("one column names a deleted file's section by its old path", () => {
 +b
 `), "stacked");
 
-  assert.ok(html.includes(">a/gone.ts<"));
+  assert.ok(html.includes(">gone.ts<"));
   assert.ok(!html.includes("/dev/null"));
 });

@@ -1791,6 +1791,8 @@ export const enLocale: LocalePlugin = {
     "i18n.after": "After",
     "diff.unchangedLine": "1 unchanged line",
     "diff.unchangedLines": "{count} unchanged lines",
+    "i18n.newFile": "New file",
+    "i18n.deletedFile": "Deleted file",
     "i18n.sessionComplete": "Session complete",
     "i18n.taskFinished": "Task finished.",
     "i18n.attentionNeeded": "Pi needs your attention",

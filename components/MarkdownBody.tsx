@@ -126,7 +126,7 @@ function renderFence(lang: string, code: string, isStreaming: boolean | undefine
   // applied tool result, so a final answer can show a diff instead of
   // describing it. Unparsable text falls back to the plain patch view.
   if ((lang === "diff" || lang === "patch") && isUnifiedPatch(code)) {
-    return <SplitPatchView text={code} />;
+    return <SplitPatchView text={code} noToolHeader />;
   }
   return <CodeBlock code={code} lang={lang} isStreaming={isStreaming} />;
 }
