@@ -64,13 +64,13 @@ export function parseUnifiedPatch(text: string): SplitDiffFile[] | null {
     if (!insideHunk) {
       if (line.startsWith("--- ")) {
         flushChanges();
-        pendingOldPath = cleanPatchPath(line.slice(4));
+        pendingOldPath = cleanPatchPath(line.slice(4), "a/");
         continue;
       }
 
       if (line.startsWith("+++ ")) {
         flushChanges();
-        current = { oldPath: pendingOldPath, newPath: cleanPatchPath(line.slice(4)), rows: [] };
+        current = { oldPath: pendingOldPath, newPath: cleanPatchPath(line.slice(4), "b/"), rows: [] };
         files.push(current);
         continue;
       }
@@ -129,6 +129,11 @@ export function parseUnifiedPatch(text: string): SplitDiffFile[] | null {
   return parsed.length > 0 ? parsed : null;
 }
 
-function cleanPatchPath(path: string): string {
-  return path.split("\t")[0].trim();
+// /dev/null has no file on that side: the path is left out, as apply_patch
+// previews leave out an added file's old path and a deleted file's new path.
+// gitPrefix is git's a/ (old side) or b/ (new side), not part of the path.
+function cleanPatchPath(path: string, gitPrefix: "a/" | "b/"): string | undefined {
+  const cleaned = path.split("\t")[0].trim();
+  if (cleaned === "/dev/null") return undefined;
+  return cleaned.startsWith(gitPrefix) ? cleaned.slice(gitPrefix.length) : cleaned;
 }

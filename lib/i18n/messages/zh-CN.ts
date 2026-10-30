@@ -1496,6 +1496,8 @@ export const zhCNLocale: LocalePlugin = {
     "i18n.thinkingUnavailable": "思考内容不可用",
     "i18n.before": "之前",
     "i18n.after": "之后",
+    "i18n.newFile": "新文件",
+    "i18n.deletedFile": "已删除的文件",
     "i18n.sessionComplete": "任务完成",
     "i18n.taskFinished": "任务已完成。",
     "i18n.attentionNeeded": "Pi 需要你的操作",

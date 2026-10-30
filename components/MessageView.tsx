@@ -1361,15 +1361,18 @@ function PairedDiffResult({ diff }: {
   );
 }
 
-export function SplitPatchView({ text }: { text: string }) {
+// noToolHeader: no tool header names the file (a patch in a reply), so a
+// one-file patch shows its --- / +++ paths above the columns when it has any.
+export function SplitPatchView({ text, noToolHeader = false }: { text: string; noToolHeader?: boolean }) {
   const files = useMemo(() => parseUnifiedPatch(text), [text]);
   if (!files) return <PatchTextView text={text} />;
-  return <SplitFilesView files={files} />;
+  return <SplitFilesView files={files} noToolHeader={noToolHeader} />;
 }
 
-function SplitFilesView({ files }: { files: SplitDiffFile[] }) {
+function SplitFilesView({ files, noToolHeader = false }: { files: SplitDiffFile[]; noToolHeader?: boolean }) {
   const { t } = useI18n();
-  const showFileHeaders = files.length > 1;
+  const multipleFiles = files.length > 1;
+  const showHeader = (file: SplitDiffFile) => multipleFiles || (noToolHeader && Boolean(file.oldPath || file.newPath));
 
   return (
     <div style={{ maxHeight: 560, overflowY: "auto", overflowX: "hidden", background: "var(--bg)" }}>
@@ -1385,7 +1388,7 @@ function SplitFilesView({ files }: { files: SplitDiffFile[] }) {
             lineHeight: 1.55,
           }}
         >
-          {showFileHeaders && (
+          {showHeader(file) && (
             <div
               style={{
                 display: "grid",
@@ -1397,8 +1400,9 @@ function SplitFilesView({ files }: { files: SplitDiffFile[] }) {
                 borderBottom: "1px solid var(--border)",
               }}
             >
-               <SplitDiffHeader title={file.oldPath || t("i18n.before")} side="left" />
-               <SplitDiffHeader title={file.newPath || t("i18n.after")} side="right" />
+               {/* A missing path beside a present one is a file added or deleted. */}
+               <SplitDiffHeader title={file.oldPath || t(file.newPath ? "i18n.newFile" : "i18n.before")} side="left" />
+               <SplitDiffHeader title={file.newPath || t(file.oldPath ? "i18n.deletedFile" : "i18n.after")} side="right" />
             </div>
           )}
 

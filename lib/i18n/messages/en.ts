@@ -1496,6 +1496,8 @@ export const enLocale: LocalePlugin = {
     "i18n.thinkingUnavailable": "Thinking content unavailable",
     "i18n.before": "Before",
     "i18n.after": "After",
+    "i18n.newFile": "New file",
+    "i18n.deletedFile": "Deleted file",
     "i18n.sessionComplete": "Session complete",
     "i18n.taskFinished": "Task finished.",
     "i18n.attentionNeeded": "Pi needs your attention",

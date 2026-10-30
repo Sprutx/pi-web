@@ -105,7 +105,7 @@ export const MarkdownBody = memo(function MarkdownBody({ children, className, is
         // applied tool result, so a final answer can show a diff instead of
         // describing it. Unparsable text falls back to the plain patch view.
         if ((lang === "diff" || lang === "patch") && isUnifiedPatch(raw)) {
-          return <SplitPatchView text={raw.replace(/\n$/, "")} />;
+          return <SplitPatchView text={raw.replace(/\n$/, "")} noToolHeader />;
         }
         return <CodeBlock code={raw.replace(/\n$/, "")} lang={lang} isStreaming={isStreaming} />;
       }

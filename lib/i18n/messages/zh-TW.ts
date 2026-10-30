@@ -1496,6 +1496,8 @@ export const zhTWLocale: LocalePlugin = {
     "i18n.thinkingUnavailable": "思考內容不可用",
     "i18n.before": "變更前",
     "i18n.after": "變更後",
+    "i18n.newFile": "新檔案",
+    "i18n.deletedFile": "已刪除的檔案",
     "i18n.sessionComplete": "工作階段已完成",
     "i18n.taskFinished": "任務已完成。",
     "i18n.attentionNeeded": "Pi 需要你處理",
