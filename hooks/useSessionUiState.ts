@@ -5,6 +5,7 @@ import {
   applySessionUiStateRequest,
   emptySessionUiState,
   normalizeSessionUiState,
+  SESSION_UI_STATE_CHANGED_EVENT,
   snapshotSessionUiFlags,
   type SessionUiFlagsSnapshot,
   type SessionUiState,
@@ -173,6 +174,18 @@ export function useSessionUiState(): SessionUiStateApi {
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  // Settings wrote the state (the project sort): read it without waiting for
+  // the running poll's revision. Queued writes keep their place, as there.
+  useEffect(() => {
+    // The hook's tests render it without a window.
+    if (typeof window === "undefined") return;
+    const onChanged = () => {
+      if (pendingRef.current.length === 0) void refresh();
+    };
+    window.addEventListener(SESSION_UI_STATE_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(SESSION_UI_STATE_CHANGED_EVENT, onChanged);
   }, [refresh]);
 
   return useMemo(
