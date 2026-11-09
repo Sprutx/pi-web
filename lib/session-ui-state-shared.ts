@@ -9,6 +9,11 @@
 // the server will. Client-safe: no Node imports.
 
 export const SESSION_UI_STATE_VERSION = 1;
+/**
+ * A window event: another part of the page (Settings) wrote the state, so
+ * the sidebar reads it now instead of at its next poll.
+ */
+export const SESSION_UI_STATE_CHANGED_EVENT = "pi-web:session-ui-state-changed";
 /** The session ids pi writes (UUIDs); same as `lib/session-reader.ts`. */
 export const SESSION_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 export const MAX_SESSION_UI_IDS_PER_REQUEST = 500;
@@ -65,6 +70,20 @@ export interface SessionUiState {
    * set before it, in every browser. Absent while empty.
    */
   readAt?: Record<string, number>;
+  /**
+   * How the sidebar orders the project groups: "activity" puts the project
+   * with the newest family activity first in each band (pinned projects
+   * included), as before the order was kept. Absent means "manual":
+   * `projectOrder`. The order stays stored in both modes, so switching back
+   * shows it again.
+   */
+  projectSort?: "activity";
+}
+/** How the sidebar orders the project groups; see `SessionUiState.projectSort`. */
+export type ProjectSortMode = "manual" | "activity";
+/** The mode `state` holds: "manual" unless the file says "activity". */
+export function projectSortMode(state: SessionUiState): ProjectSortMode {
+  return state.projectSort === "activity" ? "activity" : "manual";
 }
 /** Where a moved project goes, next to its anchor. */
 export type ProjectMovePosition = "before" | "after";
@@ -88,7 +107,9 @@ export type SessionUiStateRequest =
   /** A project's display name; null (or an empty name) removes it, and the folder name shows again. */
   | { action: "rename-project"; projectKey: string; name: string | null }
   /** Someone looking at a page has seen these sessions: their `readAt` becomes the time of the request. */
-  | { action: "read"; ids: string[] };
+  | { action: "read"; ids: string[] }
+  /** The project groups' order: kept by hand, or by activity. The stored order is never cleared. */
+  | { action: "set-project-sort"; sort: ProjectSortMode };
 
 export interface SessionUiStateResponse { state: SessionUiState }
 
@@ -267,6 +288,8 @@ export function normalizeSessionUiState(value: unknown): SessionUiState | null {
     const capped = capReadAt(reads);
     if (Object.keys(capped).length > 0) state.readAt = capped;
   }
+  // Anything else reads as the default, the order kept by hand.
+  if (value.projectSort === "activity") state.projectSort = "activity";
   return state;
 }
 
@@ -403,8 +426,12 @@ export function parseSessionUiStateRequest(body: unknown): ParseResult {
       if (!ids.ok) return ids;
       return { ok: true, request: { action: "read", ids: ids.ids } };
     }
+    case "set-project-sort": {
+      if (body.sort !== "manual" && body.sort !== "activity") return { ok: false, error: "sort must be \"manual\" or \"activity\"" };
+      return { ok: true, request: { action: "set-project-sort", sort: body.sort } };
+    }
     default:
-      return { ok: false, error: "action must be \"set\", \"restore\", \"pin-project\", \"add-projects\", \"move-project\", \"rename-project\" or \"read\"" };
+      return { ok: false, error: "action must be \"set\", \"restore\", \"pin-project\", \"add-projects\", \"move-project\", \"rename-project\", \"read\" or \"set-project-sort\"" };
   }
 }
 
@@ -664,6 +691,14 @@ export function applySessionUiStateRequest(
       if (changed) next.readAt = capReadAt(reads);
       break;
     }
+    case "set-project-sort":
+      // Only the mode changes: `projectOrder` stays for the way back.
+      if (projectSortMode(next) !== request.sort) {
+        if (request.sort === "activity") next.projectSort = "activity";
+        else delete next.projectSort;
+        changed = true;
+      }
+      break;
   }
   return { state: next, changed };
 }

@@ -75,6 +75,7 @@ import {
   chunkForSessionUiRequests,
   MAX_PROJECT_ORDER_KEYS,
   MAX_SESSION_UI_IDS_PER_REQUEST,
+  projectSortMode,
   type ProjectMovePosition,
   type SessionUiStateRequest,
 } from "@/lib/session-ui-state-shared";
@@ -709,6 +710,8 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     snapshot: snapshotUiState,
     noteRevision: noteUiRevision,
   } = useSessionUiState();
+  // Settings › General › Sidebar: groups follow activity, not the kept order.
+  const projectsByActivity = projectSortMode(uiState) === "activity";
 
   // Reads shared across browsers (#1559, lib/unread-markers.ts): the rows
   // show this browser's markers that no read covers, and covered ones go.
@@ -2662,22 +2665,25 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
         onSelect: () => openProjectInNewTab(project),
       },
       { type: "separator", id: "separator-layout" },
-      {
-        type: "item",
-        id: "move-up",
-        label: t("sidebar.moveProjectUp"),
-        icon: <ChevronIcon className="sidebar-icon-up" />,
-        disabled: up === null,
-        onSelect: () => { if (up) moveProject(project.key, up.anchorKey, up.position); },
-      },
-      {
-        type: "item",
-        id: "move-down",
-        label: t("sidebar.moveProjectDown"),
-        icon: <ChevronIcon className="sidebar-icon-down" />,
-        disabled: down === null,
-        onSelect: () => { if (down) moveProject(project.key, down.anchorKey, down.position); },
-      },
+      // Sorted by activity (Settings), the order is not the user's to change.
+      ...(projectsByActivity ? [] : [
+        {
+          type: "item",
+          id: "move-up",
+          label: t("sidebar.moveProjectUp"),
+          icon: <ChevronIcon className="sidebar-icon-up" />,
+          disabled: up === null,
+          onSelect: () => { if (up) moveProject(project.key, up.anchorKey, up.position); },
+        },
+        {
+          type: "item",
+          id: "move-down",
+          label: t("sidebar.moveProjectDown"),
+          icon: <ChevronIcon className="sidebar-icon-down" />,
+          disabled: down === null,
+          onSelect: () => { if (down) moveProject(project.key, down.anchorKey, down.position); },
+        },
+      ] satisfies SidebarMenuItem[]),
       {
         // This project open, every other one closed.
         type: "item",
@@ -2947,7 +2953,8 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     onOpenOtherProject: handleOpenOtherProject,
     onOpenArchive: () => openArchiveView(),
     // The archive view has no group rows: only the main tree's can be dragged.
-    onMoveGroup: moveProject,
+    // Sorted by activity, a group has no place of its own to move.
+    onMoveGroup: projectsByActivity ? undefined : moveProject,
   } as const;
 
   const explorerCwd = selectedCwd ?? selectedCwdProp ?? null;

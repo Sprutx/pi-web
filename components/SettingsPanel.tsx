@@ -17,6 +17,13 @@ import {
 import { useEnterSendMode, setEnterSendMode } from "@/hooks/useEnterSendMode";
 import { useFilesPlacement, setFilesPlacement } from "@/hooks/useFilesPlacement";
 import { sendAgentCommand } from "@/lib/agent-client";
+import {
+  normalizeSessionUiState,
+  projectSortMode,
+  SESSION_UI_STATE_CHANGED_EVENT,
+  type ProjectSortMode,
+  type SessionUiStateRequest,
+} from "@/lib/session-ui-state-shared";
 import type { ProjectTrustStatus, ToolSettingsResponse } from "@/lib/api-types";
 import { SETTINGS_BUILTIN_TOOLS } from "@/lib/tool-presets";
 import {
@@ -82,6 +89,15 @@ export function SettingsSectionIcon({ section, size = 16, strokeWidth = 1.8 }: {
   return <svg {...common}><path d="M9 7V2M15 7V2M6 13V8a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v5a6 6 0 0 1-12 0ZM12 19v3" /></svg>;
 }
 
+/** The project sort a `/api/sessions/ui-state` answer holds; throws its error text otherwise. */
+async function readProjectSort(response: Response): Promise<ProjectSortMode> {
+  const data = await response.json().catch(() => null) as { state?: unknown; error?: unknown } | null;
+  if (!response.ok) throw new Error(typeof data?.error === "string" ? data.error : `HTTP ${response.status}`);
+  const state = normalizeSessionUiState(data?.state);
+  if (!state) throw new Error("Invalid session UI state response");
+  return projectSortMode(state);
+}
+
 function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, onQuoteSelectionChange }: Pick<Props, "sessionId" | "onSessionReloaded" | "quoteSelectionEnabled" | "onQuoteSelectionChange">) {
   const { locale, setLocale, supportedLocales, t } = useI18n();
   const { preference, setThemePreference } = useTheme();
@@ -98,6 +114,9 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
   const [cacheMissNotices, setCacheMissNotices] = useState<boolean | null>(null);
   const [cacheMissNoticesSaving, setCacheMissNoticesSaving] = useState(false);
   const [cacheMissNoticesError, setCacheMissNoticesError] = useState<string | null>(null);
+  const [projectSort, setProjectSort] = useState<ProjectSortMode | null>(null);
+  const [projectSortSaving, setProjectSortSaving] = useState(false);
+  const [projectSortError, setProjectSortError] = useState<string | null>(null);
   const [pushRegistering, setPushRegistering] = useState(false);
   const [pushStatus, setPushStatus] = useState<{ kind: "ok" | "error"; message: string } | null>(null);
   const [webAuthEnabled, setWebAuthEnabled] = useState(false);
@@ -154,6 +173,39 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
       });
     return () => { cancelled = true; };
   }, []);
+
+  // The sidebar's project order lives in its UI state on the server, shared by every browser.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/sessions/ui-state", { cache: "no-store" })
+      .then((response) => readProjectSort(response))
+      .then((sort) => { if (!cancelled) setProjectSort(sort); })
+      .catch((cause) => {
+        if (!cancelled) setProjectSortError(cause instanceof Error ? cause.message : String(cause));
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const changeProjectSort = async (sort: ProjectSortMode) => {
+    if (sort === projectSort || projectSortSaving) return;
+    setProjectSortSaving(true);
+    setProjectSortError(null);
+    try {
+      const response = await fetch("/api/sessions/ui-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set-project-sort", sort } satisfies SessionUiStateRequest),
+        cache: "no-store",
+      });
+      setProjectSort(await readProjectSort(response));
+      // The sidebar reads the state now instead of at its next poll.
+      window.dispatchEvent(new Event(SESSION_UI_STATE_CHANGED_EVENT));
+    } catch (cause) {
+      setProjectSortError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setProjectSortSaving(false);
+    }
+  };
 
   // pi's showCacheMissNotices (#1265); the open chat is read again to show or drop them.
   const toggleCacheMissNotices = async (enabled: boolean) => {
@@ -463,6 +515,37 @@ function GeneralSettings({ sessionId, onSessionReloaded, quoteSelectionEnabled, 
           </div>
         </div>
         <p id="settings-files-placement-description" className="settings-general-description">{t("settings.filesPlacementDescription")}</p>
+        <div className="settings-chat-options">
+          <div
+            className="settings-chat-option settings-chat-switch-option"
+            role="radiogroup"
+            aria-label={t("settings.projectSort")}
+            aria-describedby="settings-project-sort-description"
+            aria-busy={projectSort === null || projectSortSaving}
+          >
+            <span>{t("settings.projectSort")}</span>
+            <div className="settings-send-mode-options">
+              {(["manual", "activity"] as const).map((sort) => (
+                <label key={sort} className="settings-send-mode-option">
+                  <input
+                    type="radio"
+                    name="project-sort"
+                    value={sort}
+                    checked={projectSort === sort}
+                    disabled={projectSort === null || projectSortSaving}
+                    onChange={() => void changeProjectSort(sort)}
+                    className="sr-only"
+                  />
+                  <span className="settings-send-mode-label">
+                    {t(sort === "manual" ? "settings.projectSortManual" : "settings.projectSortActivity")}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <p id="settings-project-sort-description" className="settings-general-description">{t("settings.projectSortDescription")}</p>
+        {projectSortError && <p role="alert" className="settings-general-error">{projectSortError}</p>}
       </section>
 
       {shellSettings && (
